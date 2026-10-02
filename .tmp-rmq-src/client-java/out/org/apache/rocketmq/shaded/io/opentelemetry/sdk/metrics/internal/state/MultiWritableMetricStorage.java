@@ -1,0 +1,27 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.state;
+
+import org.apache.rocketmq.shaded.io.opentelemetry.api.common.Attributes;
+import java.util.ArrayList;
+import java.util.List;
+
+class MultiWritableMetricStorage implements WriteableMetricStorage {
+  private final List<? extends WriteableMetricStorage> underlyingMetrics;
+
+  MultiWritableMetricStorage(List<? extends WriteableMetricStorage> metrics) {
+    this.underlyingMetrics = metrics;
+  }
+
+  @Override
+  public BoundStorageHandle bind(Attributes attributes) {
+    List<BoundStorageHandle> handles = new ArrayList<>(underlyingMetrics.size());
+    for (WriteableMetricStorage metric : underlyingMetrics) {
+      handles.add(metric.bind(attributes));
+    }
+    return new MultiBoundStorageHandle(handles);
+  }
+}

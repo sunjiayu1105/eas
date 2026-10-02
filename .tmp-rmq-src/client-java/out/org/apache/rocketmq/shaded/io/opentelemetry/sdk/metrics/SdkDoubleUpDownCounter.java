@@ -1,0 +1,107 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics;
+
+import org.apache.rocketmq.shaded.io.opentelemetry.api.common.Attributes;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.DoubleUpDownCounter;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.ObservableDoubleUpDownCounter;
+import org.apache.rocketmq.shaded.io.opentelemetry.context.Context;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.descriptor.InstrumentDescriptor;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.instrument.BoundDoubleUpDownCounter;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.state.BoundStorageHandle;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.state.MeterProviderSharedState;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.state.MeterSharedState;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.internal.state.WriteableMetricStorage;
+import java.util.function.Consumer;
+
+final class SdkDoubleUpDownCounter extends AbstractInstrument implements DoubleUpDownCounter {
+
+  private final WriteableMetricStorage storage;
+
+  private SdkDoubleUpDownCounter(InstrumentDescriptor descriptor, WriteableMetricStorage storage) {
+    super(descriptor);
+    this.storage = storage;
+  }
+
+  @Override
+  public void add(double increment, Attributes attributes, Context context) {
+    storage.recordDouble(increment, attributes, context);
+  }
+
+  @Override
+  public void add(double increment, Attributes attributes) {
+    add(increment, attributes, Context.current());
+  }
+
+  @Override
+  public void add(double increment) {
+    add(increment, Attributes.empty());
+  }
+
+  BoundDoubleUpDownCounter bind(Attributes attributes) {
+    return new BoundInstrument(storage.bind(attributes), attributes);
+  }
+
+  static final class BoundInstrument implements BoundDoubleUpDownCounter {
+    private final BoundStorageHandle handle;
+    private final Attributes attributes;
+
+    BoundInstrument(BoundStorageHandle handle, Attributes attributes) {
+      this.handle = handle;
+      this.attributes = attributes;
+    }
+
+    @Override
+    public void add(double increment, Context context) {
+      handle.recordDouble(increment, attributes, context);
+    }
+
+    @Override
+    public void add(double increment) {
+      add(increment, Context.current());
+    }
+
+    @Override
+    public void unbind() {
+      handle.release();
+    }
+  }
+
+  static final class Builder extends AbstractInstrumentBuilder<SdkDoubleUpDownCounter.Builder>
+      implements DoubleUpDownCounterBuilder {
+
+    Builder(
+        MeterProviderSharedState meterProviderSharedState,
+        MeterSharedState sharedState,
+        String name,
+        String description,
+        String unit) {
+      super(meterProviderSharedState, sharedState, name, description, unit);
+    }
+
+    @Override
+    protected Builder getThis() {
+      return this;
+    }
+
+    @Override
+    public DoubleUpDownCounter build() {
+      return buildSynchronousInstrument(
+          InstrumentType.UP_DOWN_COUNTER, InstrumentValueType.DOUBLE, SdkDoubleUpDownCounter::new);
+    }
+
+    @Override
+    public ObservableDoubleUpDownCounter buildWithCallback(
+        Consumer<ObservableDoubleMeasurement> callback) {
+      return new SdkObservableInstrument(
+          meterSharedState,
+          registerDoubleAsynchronousInstrument(
+              InstrumentType.OBSERVABLE_UP_DOWN_COUNTER, callback));
+    }
+  }
+}

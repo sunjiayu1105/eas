@@ -1,0 +1,146 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package org.apache.rocketmq.shaded.io.opentelemetry.sdk;
+
+import org.apache.rocketmq.shaded.io.opentelemetry.api.OpenTelemetry;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.MeterBuilder;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.metrics.MeterProvider;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.trace.Tracer;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.trace.TracerBuilder;
+import org.apache.rocketmq.shaded.io.opentelemetry.api.trace.TracerProvider;
+import org.apache.rocketmq.shaded.io.opentelemetry.context.propagation.ContextPropagators;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.logs.SdkLogEmitterProvider;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import org.apache.rocketmq.shaded.io.opentelemetry.sdk.trace.SdkTracerProvider;
+import javax.annotation.concurrent.ThreadSafe;
+
+/** The SDK implementation of {@link OpenTelemetry}. */
+@ThreadSafe
+public final class OpenTelemetrySdk implements OpenTelemetry {
+  private final ObfuscatedTracerProvider tracerProvider;
+  private final ObfuscatedMeterProvider meterProvider;
+  private final SdkLogEmitterProvider logEmitterProvider;
+  private final ContextPropagators propagators;
+
+  OpenTelemetrySdk(
+      SdkTracerProvider tracerProvider,
+      SdkMeterProvider meterProvider,
+      SdkLogEmitterProvider logEmitterProvider,
+      ContextPropagators propagators) {
+    this.tracerProvider = new ObfuscatedTracerProvider(tracerProvider);
+    this.meterProvider = new ObfuscatedMeterProvider(meterProvider);
+    this.logEmitterProvider = logEmitterProvider;
+    this.propagators = propagators;
+  }
+
+  /**
+   * Returns a new {@link OpenTelemetrySdkBuilder} for configuring an instance of {@linkplain
+   * OpenTelemetrySdk the OpenTelemetry SDK}.
+   */
+  public static OpenTelemetrySdkBuilder builder() {
+    return new OpenTelemetrySdkBuilder();
+  }
+
+  @Override
+  public TracerProvider getTracerProvider() {
+    return tracerProvider;
+  }
+
+  /** Returns the {@link SdkTracerProvider} for this {@link OpenTelemetrySdk}. */
+  public SdkTracerProvider getSdkTracerProvider() {
+    return tracerProvider.unobfuscate();
+  }
+
+  @Override
+  public MeterProvider getMeterProvider() {
+    return meterProvider;
+  }
+
+  /** Returns the {@link SdkMeterProvider} for this {@link OpenTelemetrySdk}. */
+  public SdkMeterProvider getSdkMeterProvider() {
+    return meterProvider.unobfuscate();
+  }
+
+  /** Returns the {@link SdkLogEmitterProvider} for this {@link OpenTelemetrySdk}. */
+  public SdkLogEmitterProvider getSdkLogEmitterProvider() {
+    return logEmitterProvider;
+  }
+
+  @Override
+  public ContextPropagators getPropagators() {
+    return propagators;
+  }
+
+  @Override
+  public String toString() {
+    // TODO(anuraaga): Add metrics / logs / propagators
+    return "OpenTelemetrySdk{" + "tracerProvider=" + tracerProvider.unobfuscate() + '}';
+  }
+
+  /**
+   * This class allows the SDK to unobfuscate an obfuscated static global provider.
+   *
+   * <p>Static global providers are obfuscated when they are returned from the API to prevent users
+   * from casting them to their SDK specific implementation. For example, we do not want users to
+   * use patterns like {@code (SdkTracerProvider) openTelemetry.getTracerProvider()}.
+   */
+  @ThreadSafe
+  // Visible for testing
+  static class ObfuscatedTracerProvider implements TracerProvider {
+
+    private final SdkTracerProvider delegate;
+
+    ObfuscatedTracerProvider(SdkTracerProvider delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public Tracer get(String instrumentationScopeName) {
+      return delegate.get(instrumentationScopeName);
+    }
+
+    @Override
+    public Tracer get(String instrumentationScopeName, String instrumentationScopeVersion) {
+      return delegate.get(instrumentationScopeName, instrumentationScopeVersion);
+    }
+
+    @Override
+    public TracerBuilder tracerBuilder(String instrumentationScopeName) {
+      return delegate.tracerBuilder(instrumentationScopeName);
+    }
+
+    public SdkTracerProvider unobfuscate() {
+      return delegate;
+    }
+  }
+
+  /**
+   * This class allows the SDK to unobfuscate an obfuscated static global provider.
+   *
+   * <p>Static global providers are obfuscated when they are returned from the API to prevent users
+   * from casting them to their SDK specific implementation. For example, we do not want users to
+   * use patterns like {@code (SdkMeterProvider) openTelemetry.getMeterProvider()}.
+   */
+  @ThreadSafe
+  // Visible for testing
+  static class ObfuscatedMeterProvider implements MeterProvider {
+
+    private final SdkMeterProvider delegate;
+
+    ObfuscatedMeterProvider(SdkMeterProvider delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public MeterBuilder meterBuilder(String instrumentationScopeName) {
+      return delegate.meterBuilder(instrumentationScopeName);
+    }
+
+    public SdkMeterProvider unobfuscate() {
+      return delegate;
+    }
+  }
+}

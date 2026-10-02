@@ -1,0 +1,73 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.rocketmq.client.java.impl.consumer;
+
+import org.apache.rocketmq.shaded.com.google.common.collect.ImmutableList;
+import org.apache.rocketmq.shaded.com.google.common.math.IntMath;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import javax.annotation.concurrent.Immutable;
+import org.apache.rocketmq.shaded.commons.lang3.RandomUtils;
+import org.apache.rocketmq.client.java.misc.Utilities;
+import org.apache.rocketmq.client.java.route.MessageQueueImpl;
+import org.apache.rocketmq.client.java.route.TopicRouteData;
+
+@Immutable
+public class SubscriptionLoadBalancer {
+
+    /**
+     * Message queues to receive message.
+     */
+    protected final ImmutableList<MessageQueueImpl> messageQueues;
+    /**
+     * Index for round-robin.
+     */
+    private final AtomicInteger index;
+
+    public SubscriptionLoadBalancer(TopicRouteData topicRouteData) {
+        this(new AtomicInteger(RandomUtils.nextInt(0, Integer.MAX_VALUE)), topicRouteData);
+    }
+
+    private SubscriptionLoadBalancer(AtomicInteger index, TopicRouteData topicRouteData) {
+        this.index = index;
+        final List<MessageQueueImpl> mqs = topicRouteData.getMessageQueues().stream()
+            .filter(SubscriptionLoadBalancer::isReadableMasterQueue)
+            .collect(Collectors.toList());
+        if (mqs.isEmpty()) {
+            throw new IllegalArgumentException("No readable message queue found, topiRouteData=" + topicRouteData);
+        }
+        this.messageQueues = ImmutableList.<MessageQueueImpl>builder().addAll(mqs).build();
+    }
+
+    /**
+     * Check if the message queue is readable and belongs to master broker.
+     */
+    public static boolean isReadableMasterQueue(MessageQueueImpl mq) {
+        return mq.getPermission().isReadable() && Utilities.MASTER_BROKER_ID == mq.getBroker().getId();
+    }
+
+    SubscriptionLoadBalancer update(TopicRouteData topicRouteData) {
+        return new SubscriptionLoadBalancer(index, topicRouteData);
+    }
+
+    public MessageQueueImpl takeMessageQueue() {
+        final int next = index.getAndIncrement();
+        return messageQueues.get(IntMath.mod(next, messageQueues.size()));
+    }
+}

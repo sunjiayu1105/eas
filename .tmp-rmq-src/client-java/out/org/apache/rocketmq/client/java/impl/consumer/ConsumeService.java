@@ -1,0 +1,94 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.rocketmq.client.java.impl.consumer;
+
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.FutureCallback;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.Futures;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.ListenableFuture;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.ListeningExecutorService;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.SettableFuture;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import org.apache.rocketmq.client.apis.consumer.ConsumeResult;
+import org.apache.rocketmq.client.apis.consumer.MessageListener;
+import org.apache.rocketmq.client.java.hook.MessageInterceptor;
+import org.apache.rocketmq.client.java.message.MessageViewImpl;
+import org.apache.rocketmq.client.java.misc.ClientId;
+import org.apache.rocketmq.shaded.org.slf4j.Logger;
+import org.apache.rocketmq.shaded.org.slf4j.LoggerFactory;
+
+@SuppressWarnings("NullableProblems")
+public abstract class ConsumeService {
+    private static final Logger log = LoggerFactory.getLogger(ConsumeService.class);
+
+    protected final ClientId clientId;
+    protected final String consumerGroup;
+    private final MessageListener messageListener;
+    private final ExecutorService consumptionExecutor;
+    private final MessageInterceptor messageInterceptor;
+    private final ScheduledExecutorService scheduler;
+
+    public ConsumeService(ClientId clientId, String consumerGroup,
+        MessageListener messageListener, ExecutorService consumptionExecutor,
+        MessageInterceptor messageInterceptor, ScheduledExecutorService scheduler) {
+        this.clientId = clientId;
+        this.consumerGroup = consumerGroup;
+        this.messageListener = messageListener;
+        this.consumptionExecutor = consumptionExecutor;
+        this.messageInterceptor = messageInterceptor;
+        this.scheduler = scheduler;
+    }
+
+    public abstract void consume(ProcessQueue pq, List<MessageViewImpl> messageViews);
+
+    public ListenableFuture<ConsumeResult> consume(MessageViewImpl messageView) {
+        return consume(messageView, Duration.ZERO);
+    }
+
+    public ListenableFuture<ConsumeResult> consume(MessageViewImpl messageView, Duration delay) {
+        final ListeningExecutorService executorService = MoreExecutors.listeningDecorator(consumptionExecutor);
+        final ConsumeTask task = new ConsumeTask(clientId, consumerGroup,
+                messageListener, messageView, messageInterceptor);
+        // Consume message with no delay.
+        if (Duration.ZERO.compareTo(delay) >= 0) {
+            return executorService.submit(task);
+        }
+        final SettableFuture<ConsumeResult> future0 = SettableFuture.create();
+        scheduler.schedule(() -> {
+            final ListenableFuture<ConsumeResult> future = executorService.submit(task);
+            Futures.addCallback(future, new FutureCallback<ConsumeResult>() {
+                @Override
+                public void onSuccess(ConsumeResult consumeResult) {
+                    future0.set(consumeResult);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    // Should never reach here.
+                    log.error("[Bug] Exception raised while submitting scheduled consumption task, clientId={}",
+                        clientId, t);
+                }
+            }, MoreExecutors.directExecutor());
+        }, delay.toNanos(), TimeUnit.NANOSECONDS);
+        return future0;
+    }
+}

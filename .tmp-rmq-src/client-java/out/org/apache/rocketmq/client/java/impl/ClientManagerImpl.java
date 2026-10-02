@@ -1,0 +1,632 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.rocketmq.client.java.impl;
+
+import apache.rocketmq.v2.AckMessageRequest;
+import apache.rocketmq.v2.AckMessageResponse;
+import apache.rocketmq.v2.ChangeInvisibleDurationRequest;
+import apache.rocketmq.v2.ChangeInvisibleDurationResponse;
+import apache.rocketmq.v2.EndTransactionRequest;
+import apache.rocketmq.v2.EndTransactionResponse;
+import apache.rocketmq.v2.ForwardMessageToDeadLetterQueueRequest;
+import apache.rocketmq.v2.ForwardMessageToDeadLetterQueueResponse;
+import apache.rocketmq.v2.HeartbeatRequest;
+import apache.rocketmq.v2.HeartbeatResponse;
+import apache.rocketmq.v2.NotifyClientTerminationRequest;
+import apache.rocketmq.v2.NotifyClientTerminationResponse;
+import apache.rocketmq.v2.QueryAssignmentRequest;
+import apache.rocketmq.v2.QueryAssignmentResponse;
+import apache.rocketmq.v2.QueryRouteRequest;
+import apache.rocketmq.v2.QueryRouteResponse;
+import apache.rocketmq.v2.RecallMessageRequest;
+import apache.rocketmq.v2.RecallMessageResponse;
+import apache.rocketmq.v2.ReceiveMessageRequest;
+import apache.rocketmq.v2.ReceiveMessageResponse;
+import apache.rocketmq.v2.SendMessageRequest;
+import apache.rocketmq.v2.SendMessageResponse;
+import apache.rocketmq.v2.SyncLiteSubscriptionRequest;
+import apache.rocketmq.v2.SyncLiteSubscriptionResponse;
+import apache.rocketmq.v2.TelemetryCommand;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.FutureCallback;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.Futures;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.ListenableFuture;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.rocketmq.shaded.com.google.errorprone.annotations.concurrent.GuardedBy;
+import org.apache.rocketmq.shaded.io.grpc.ConnectivityState;
+import org.apache.rocketmq.shaded.io.grpc.Metadata;
+import org.apache.rocketmq.shaded.io.grpc.Status;
+import org.apache.rocketmq.shaded.io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import javax.net.ssl.SSLException;
+import org.apache.rocketmq.client.apis.ClientException;
+import org.apache.rocketmq.client.java.exception.InternalErrorException;
+import org.apache.rocketmq.client.java.misc.ClientId;
+import org.apache.rocketmq.client.java.misc.ExecutorServices;
+import org.apache.rocketmq.client.java.misc.MetadataUtils;
+import org.apache.rocketmq.client.java.misc.ThreadFactoryImpl;
+import org.apache.rocketmq.client.java.misc.Utilities;
+import org.apache.rocketmq.client.java.route.Endpoints;
+import org.apache.rocketmq.client.java.rpc.Context;
+import org.apache.rocketmq.client.java.rpc.RpcClient;
+import org.apache.rocketmq.client.java.rpc.RpcClientImpl;
+import org.apache.rocketmq.client.java.rpc.RpcFuture;
+import org.apache.rocketmq.shaded.org.slf4j.Logger;
+import org.apache.rocketmq.shaded.org.slf4j.LoggerFactory;
+
+/**
+ * @see ClientManager
+ */
+public class ClientManagerImpl extends ClientManager {
+    public static final Duration RPC_CLIENT_MAX_IDLE_DURATION = Duration.ofMinutes(30);
+
+    public static final Duration RPC_CLIENT_IDLE_CHECK_INITIAL_DELAY = Duration.ofSeconds(5);
+    public static final Duration RPC_CLIENT_IDLE_CHECK_PERIOD = Duration.ofMinutes(1);
+
+    public static final Duration HEART_BEAT_INITIAL_DELAY = Duration.ofSeconds(1);
+    public static final Duration HEART_BEAT_PERIOD = Duration.ofSeconds(10);
+
+    public static final Duration LOG_STATS_INITIAL_DELAY = Duration.ofSeconds(1);
+    public static final Duration LOG_STATS_PERIOD = Duration.ofSeconds(60);
+
+    public static final Duration SYNC_SETTINGS_DELAY = Duration.ofSeconds(1);
+    public static final Duration SYNC_SETTINGS_PERIOD = Duration.ofMinutes(5);
+
+    static final int HEART_BEAT_FAILURE_THRESHOLD = 2;
+    static final Duration TRANSPORT_RECOVERY_COOLDOWN = Duration.ofSeconds(30);
+
+    private static final Logger log = LoggerFactory.getLogger(ClientManagerImpl.class);
+
+    private final Client client;
+
+    @GuardedBy("rpcClientTableLock")
+    private final Map<Endpoints, RpcClient> rpcClientTable;
+    private final ReadWriteLock rpcClientTableLock;
+    private final ConcurrentMap<Endpoints, Integer> heartbeatFailureAttempts;
+    private final ConcurrentMap<Endpoints, TransportRecoveryState> transportRecoveryStates;
+
+    /**
+     * In charge of all scheduled tasks.
+     */
+    private final ScheduledExecutorService scheduler;
+
+    /**
+     * Public executor for all async RPCs, <strong>should never submit a heavy task.</strong>
+     */
+    private final ExecutorService asyncWorker;
+
+    public ClientManagerImpl(Client client) {
+        this.client = client;
+        this.rpcClientTable = new HashMap<>();
+        this.rpcClientTableLock = new ReentrantReadWriteLock();
+        this.heartbeatFailureAttempts = new ConcurrentHashMap<>();
+        this.transportRecoveryStates = new ConcurrentHashMap<>();
+        final long clientIndex = client.getClientId().getIndex();
+        this.scheduler = new ScheduledThreadPoolExecutor(
+            Runtime.getRuntime().availableProcessors(),
+            new ThreadFactoryImpl("ClientScheduler", clientIndex));
+
+        this.asyncWorker = ExecutorServices.newExecutorService(client.isVirtualThreadsEnabled(),
+            () -> new ThreadPoolExecutor(
+                Runtime.getRuntime().availableProcessors(),
+                Runtime.getRuntime().availableProcessors(),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(50000),
+                new ThreadFactoryImpl("ClientAsyncWorker", clientIndex)));
+    }
+
+    /**
+     * It is well-founded that a {@link RpcClient} is deprecated if it is idle for a long time, so it is essential to
+     * clear it.
+     *
+     * @throws InterruptedException if the thread has been interrupted
+     */
+    private void clearIdleRpcClients() throws InterruptedException {
+        rpcClientTableLock.writeLock().lock();
+        try {
+            final Iterator<Map.Entry<Endpoints, RpcClient>> it = rpcClientTable.entrySet().iterator();
+            while (it.hasNext()) {
+                final Map.Entry<Endpoints, RpcClient> entry = it.next();
+                final Endpoints endpoints = entry.getKey();
+                final RpcClient rpcClient = entry.getValue();
+
+                final Duration idleDuration = rpcClient.idleDuration();
+                if (idleDuration.compareTo(RPC_CLIENT_MAX_IDLE_DURATION) > 0) {
+                    it.remove();
+                    heartbeatFailureAttempts.remove(endpoints);
+                    transportRecoveryStates.remove(endpoints);
+                    rpcClient.shutdown();
+                    log.info("Rpc client has been idle for a long time, endpoints={}, idleDuration={}, " +
+                            "rpcClientMaxIdleDuration={}, clientId={}", endpoints, idleDuration,
+                        RPC_CLIENT_MAX_IDLE_DURATION, client.getClientId());
+                }
+            }
+        } finally {
+            rpcClientTableLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Obtain the RPC client by remote {@link Endpoints}, if it does not already exist, it will be created
+     * automatically.
+     *
+     * @param endpoints remote endpoints.
+     * @return RPC client.
+     */
+    private RpcClient getRpcClient(Endpoints endpoints) throws ClientException {
+        RpcClient rpcClient;
+        rpcClientTableLock.readLock().lock();
+        try {
+            rpcClient = rpcClientTable.get(endpoints);
+            if (null != rpcClient) {
+                return rpcClient;
+            }
+        } finally {
+            rpcClientTableLock.readLock().unlock();
+        }
+        rpcClientTableLock.writeLock().lock();
+        try {
+            rpcClient = rpcClientTable.get(endpoints);
+            if (null != rpcClient) {
+                return rpcClient;
+            }
+            try {
+                rpcClient = new RpcClientImpl(endpoints, client.isSslEnabled());
+            } catch (SSLException e) {
+                log.error("Failed to get RPC client, endpoints={}, clientId={}", endpoints, client.getClientId(), e);
+                throw new ClientException("Failed to generate RPC client", e);
+            }
+            rpcClientTable.put(endpoints, rpcClient);
+            return rpcClient;
+        } finally {
+            rpcClientTableLock.writeLock().unlock();
+        }
+    }
+
+    private RpcClient getRpcClientIfPresent(Endpoints endpoints) {
+        rpcClientTableLock.readLock().lock();
+        try {
+            return rpcClientTable.get(endpoints);
+        } finally {
+            rpcClientTableLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public void reconnect(Endpoints endpoints) {
+        final RpcClient rpcClient = getRpcClientIfPresent(endpoints);
+        if (null == rpcClient) {
+            log.warn("Failed to reconnect because rpc client does not exist, endpoints={}, clientId={}",
+                endpoints, client.getClientId());
+            return;
+        }
+        reconnect(endpoints, rpcClient);
+    }
+
+    void reconnect(Endpoints endpoints, RpcClient rpcClient) {
+        recoverTransport(endpoints, rpcClient, "server reconnect command", false);
+    }
+
+    @Override
+    public RpcFuture<QueryRouteRequest, QueryRouteResponse> queryRoute(Endpoints endpoints, QueryRouteRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<QueryRouteResponse> future = rpcClient.queryRoute(metadata, request, asyncWorker,
+                duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<HeartbeatRequest, HeartbeatResponse> heartbeat(Endpoints endpoints, HeartbeatRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            ListenableFuture<HeartbeatResponse> future = rpcClient.heartbeat(metadata, request, asyncWorker, duration);
+            monitorHeartbeat(endpoints, rpcClient, future);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    void monitorHeartbeat(Endpoints endpoints, RpcClient rpcClient, ListenableFuture<HeartbeatResponse> future) {
+        Futures.addCallback(future, new FutureCallback<HeartbeatResponse>() {
+            @Override
+            public void onSuccess(HeartbeatResponse result) {
+                heartbeatFailureAttempts.remove(endpoints);
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                final Status.Code code = Status.fromThrowable(t).getCode();
+                if (Status.Code.UNAVAILABLE == code) {
+                    heartbeatFailureAttempts.remove(endpoints);
+                    if (ConnectivityState.READY == rpcClient.getState(false)) {
+                        recoverTransport(endpoints, rpcClient, "heartbeat failure, statusCode=" + code, true);
+                    }
+                    return;
+                }
+                if (Status.Code.DEADLINE_EXCEEDED != code) {
+                    heartbeatFailureAttempts.remove(endpoints);
+                    return;
+                }
+                final int attempts = heartbeatFailureAttempts.merge(endpoints, 1, Integer::sum);
+                if (attempts >= HEART_BEAT_FAILURE_THRESHOLD) {
+                    recoverTransport(endpoints, rpcClient, "heartbeat failure, statusCode=" + code, true);
+                }
+            }
+        }, MoreExecutors.directExecutor());
+    }
+
+    private void recoverTransport(Endpoints endpoints, RpcClient rpcClient, String reason,
+        boolean respectHeartbeatCooldown) {
+        final TransportRecoveryState recoveryState = transportRecoveryStates.computeIfAbsent(
+            endpoints, ignored -> new TransportRecoveryState());
+        if (!recoveryState.recovering.compareAndSet(false, true)) {
+            log.info("Skip concurrent transport recovery, endpoints={}, reason={}, clientId={}",
+                endpoints, reason, client.getClientId());
+            return;
+        }
+        try {
+            final long now = System.nanoTime();
+            final long previous = recoveryState.lastRecoveryNanoTime.get();
+            if (TransportRecoveryState.NO_RECOVERY_NANO_TIME != previous) {
+                if (respectHeartbeatCooldown
+                    && now - previous < TRANSPORT_RECOVERY_COOLDOWN.toNanos()) {
+                    log.info("Skip transport recovery during heartbeat cooldown, endpoints={}, reason={}, "
+                            + "cooldown={}, clientId={}", endpoints, reason, TRANSPORT_RECOVERY_COOLDOWN,
+                        client.getClientId());
+                    return;
+                }
+            }
+            recoveryState.lastRecoveryNanoTime.set(now);
+            heartbeatFailureAttempts.remove(endpoints);
+            log.warn("Try to recover transport, endpoints={}, reason={}, clientId={}",
+                endpoints, reason, client.getClientId());
+            try {
+                rpcClient.enterIdle();
+            } catch (RuntimeException e) {
+                log.warn("Failed to enter idle mode while recovering transport, endpoints={}, reason={}, clientId={}",
+                    endpoints, reason, client.getClientId(), e);
+            }
+            try {
+                client.reconnectTelemetry(endpoints);
+            } catch (RuntimeException e) {
+                log.warn("Failed to rebuild telemetry while recovering transport, endpoints={}, reason={}, "
+                    + "clientId={}", endpoints, reason, client.getClientId(), e);
+            }
+        } finally {
+            recoveryState.recovering.set(false);
+        }
+    }
+
+    private static final class TransportRecoveryState {
+        private static final long NO_RECOVERY_NANO_TIME = Long.MIN_VALUE;
+
+        private final AtomicLong lastRecoveryNanoTime;
+        private final AtomicBoolean recovering;
+
+        private TransportRecoveryState() {
+            this.lastRecoveryNanoTime = new AtomicLong(NO_RECOVERY_NANO_TIME);
+            this.recovering = new AtomicBoolean();
+        }
+    }
+
+    @Override
+    public RpcFuture<SendMessageRequest, SendMessageResponse> sendMessage(Endpoints endpoints,
+        SendMessageRequest request, Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<SendMessageResponse> future =
+                rpcClient.sendMessage(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<QueryAssignmentRequest, QueryAssignmentResponse> queryAssignment(Endpoints endpoints,
+        QueryAssignmentRequest request, Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<QueryAssignmentResponse> future =
+                rpcClient.queryAssignment(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<ReceiveMessageRequest, List<ReceiveMessageResponse>> receiveMessage(Endpoints endpoints,
+        ReceiveMessageRequest request, Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<List<ReceiveMessageResponse>> future =
+                rpcClient.receiveMessage(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<AckMessageRequest, AckMessageResponse> ackMessage(Endpoints endpoints, AckMessageRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<AckMessageResponse> future =
+                rpcClient.ackMessage(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<ChangeInvisibleDurationRequest, ChangeInvisibleDurationResponse>
+    changeInvisibleDuration(Endpoints endpoints, ChangeInvisibleDurationRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<ChangeInvisibleDurationResponse> future =
+                rpcClient.changeInvisibleDuration(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<ForwardMessageToDeadLetterQueueRequest, ForwardMessageToDeadLetterQueueResponse>
+    forwardMessageToDeadLetterQueue(Endpoints endpoints, ForwardMessageToDeadLetterQueueRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<ForwardMessageToDeadLetterQueueResponse> future =
+                rpcClient.forwardMessageToDeadLetterQueue(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<EndTransactionRequest, EndTransactionResponse> endTransaction(Endpoints endpoints,
+        EndTransactionRequest request, Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<EndTransactionResponse> future =
+                rpcClient.endTransaction(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<NotifyClientTerminationRequest, NotifyClientTerminationResponse>
+    notifyClientTermination(Endpoints endpoints, NotifyClientTerminationRequest request,
+        Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<NotifyClientTerminationResponse> future =
+                rpcClient.notifyClientTermination(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<RecallMessageRequest, RecallMessageResponse> recallMessage(Endpoints endpoints,
+        RecallMessageRequest request, Duration duration) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<RecallMessageResponse> future =
+                rpcClient.recallMessage(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public RpcFuture<SyncLiteSubscriptionRequest, SyncLiteSubscriptionResponse> syncLiteSubscription(
+        Endpoints endpoints,
+        SyncLiteSubscriptionRequest request,
+        Duration duration
+    ) {
+        try {
+            final Metadata metadata = client.sign();
+            final Context context = new Context(endpoints, metadata);
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            final ListenableFuture<SyncLiteSubscriptionResponse> future =
+                rpcClient.syncLiteSubscription(metadata, request, asyncWorker, duration);
+            return new RpcFuture<>(context, request, future);
+        } catch (Throwable t) {
+            return new RpcFuture<>(t);
+        }
+    }
+
+    @Override
+    public StreamObserver<TelemetryCommand> telemetry(Endpoints endpoints, Duration duration,
+        StreamObserver<TelemetryCommand> responseObserver) throws ClientException {
+        try {
+            final Metadata metadata = client.sign();
+            final RpcClient rpcClient = getRpcClient(endpoints);
+            return rpcClient.telemetry(metadata, asyncWorker, duration, responseObserver);
+        } catch (Throwable t) {
+            throw new InternalErrorException(t);
+        }
+    }
+
+    @Override
+    public ScheduledExecutorService getScheduler() {
+        return this.scheduler;
+    }
+
+    @Override
+    protected void startUp() {
+        final ClientId clientId = client.getClientId();
+        log.info("Begin to start the client manager, clientId={}", clientId);
+        scheduler.scheduleWithFixedDelay(
+            () -> {
+                try {
+                    clearIdleRpcClients();
+                } catch (Throwable t) {
+                    log.error("Exception raised during the clearing of idle rpc clients, clientId={}", clientId, t);
+                }
+            },
+            RPC_CLIENT_IDLE_CHECK_INITIAL_DELAY.toNanos(),
+            RPC_CLIENT_IDLE_CHECK_PERIOD.toNanos(),
+            TimeUnit.NANOSECONDS
+        );
+
+        scheduler.scheduleWithFixedDelay(
+            () -> {
+                try {
+                    client.doHeartbeat();
+                } catch (Throwable t) {
+                    log.error("Exception raised during heartbeat, clientId={}", clientId, t);
+                }
+            },
+            HEART_BEAT_INITIAL_DELAY.toNanos(),
+            HEART_BEAT_PERIOD.toNanos(),
+            TimeUnit.NANOSECONDS
+        );
+
+        scheduler.scheduleWithFixedDelay(
+            () -> {
+                try {
+                    log.info("Start to log statistics, clientVersion={}, clientWrapperVersion={}, "
+                            + "clientEndpoints={}, os description=[{}], java description=[{}], clientId={}",
+                        MetadataUtils.getVersion(), MetadataUtils.getWrapperVersion(), client.getEndpoints(),
+                        Utilities.getOsDescription(), Utilities.getJavaDescription(), clientId);
+                    client.doStats();
+                } catch (Throwable t) {
+                    log.error("Exception raised during statistics logging, clientId={}", clientId, t);
+                }
+            },
+            LOG_STATS_INITIAL_DELAY.toNanos(),
+            LOG_STATS_PERIOD.toNanos(),
+            TimeUnit.NANOSECONDS
+        );
+
+        scheduler.scheduleWithFixedDelay(
+            () -> {
+                try {
+                    client.syncSettings();
+                } catch (Throwable t) {
+                    log.error("Exception raised during the setting synchronization, clientId={}", clientId, t);
+                }
+            },
+            SYNC_SETTINGS_DELAY.toNanos(),
+            SYNC_SETTINGS_PERIOD.toNanos(),
+            TimeUnit.NANOSECONDS
+        );
+        log.info("The client manager starts successfully, clientId={}", clientId);
+    }
+
+    @Override
+    protected void shutDown() throws IOException {
+        final ClientId clientId = client.getClientId();
+        log.info("Begin to shutdown the client manager, clientId={}", clientId);
+        scheduler.shutdown();
+        try {
+            if (!ExecutorServices.awaitTerminated(scheduler)) {
+                log.error("[Bug] Timeout to shutdown the client scheduler, clientId={}", clientId);
+            } else {
+                log.info("Shutdown the client scheduler successfully, clientId={}", clientId);
+            }
+            rpcClientTableLock.writeLock().lock();
+            try {
+                final Iterator<Map.Entry<Endpoints, RpcClient>> it = rpcClientTable.entrySet().iterator();
+                while (it.hasNext()) {
+                    final Map.Entry<Endpoints, RpcClient> entry = it.next();
+                    final RpcClient rpcClient = entry.getValue();
+                    it.remove();
+                    rpcClient.shutdown();
+                }
+            } finally {
+                rpcClientTableLock.writeLock().unlock();
+            }
+            log.info("Shutdown all rpc client(s) successfully, clientId={}", clientId);
+            asyncWorker.shutdown();
+            if (!ExecutorServices.awaitTerminated(asyncWorker)) {
+                log.error("[Bug] Timeout to shutdown the client async worker, clientId={}", clientId);
+            } else {
+                log.info("Shutdown the client async worker successfully, clientId={}", clientId);
+            }
+        } catch (InterruptedException e) {
+            log.error("[Bug] Unexpected exception raised while shutdown client manager, clientId={}", clientId, e);
+            throw new IOException(e);
+        }
+        log.info("Shutdown the client manager successfully, clientId={}", clientId);
+    }
+
+    @SuppressWarnings("NullableProblems")
+    @Override
+    protected String serviceName() {
+        return super.serviceName() + "-" + client.getClientId().getIndex();
+    }
+}

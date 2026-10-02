@@ -1,0 +1,94 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.rocketmq.client.apis;
+
+import org.apache.rocketmq.shaded.com.google.common.annotations.Beta;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Common client configuration.
+ */
+public class ClientConfiguration {
+    private final String endpoints;
+    private final SessionCredentialsProvider sessionCredentialsProvider;
+    private final Duration requestTimeout;
+    private final boolean sslEnabled;
+    private final boolean virtualThreadsEnabled;
+    private final String namespace;
+    private final int maxStartupAttempts;
+    private final Map<String, String> clientProperties;
+
+    /**
+     * The caller is supposed to have validated the arguments and handled throwing exceptions or
+     * logging warnings already, so we avoid repeating args check here.
+     */
+    ClientConfiguration(String endpoints, SessionCredentialsProvider sessionCredentialsProvider,
+        Duration requestTimeout, boolean sslEnabled, boolean virtualThreadsEnabled, String namespace,
+        int maxStartupAttempts,
+        Map<String, String> clientProperties) {
+        this.endpoints = endpoints;
+        this.sessionCredentialsProvider = sessionCredentialsProvider;
+        this.requestTimeout = requestTimeout;
+        this.sslEnabled = sslEnabled;
+        this.virtualThreadsEnabled = virtualThreadsEnabled;
+        this.namespace = namespace;
+        this.maxStartupAttempts = maxStartupAttempts;
+        this.clientProperties = Collections.unmodifiableMap(new LinkedHashMap<>(clientProperties));
+    }
+
+    public static ClientConfigurationBuilder newBuilder() {
+        return new ClientConfigurationBuilder();
+    }
+
+    public String getEndpoints() {
+        return endpoints;
+    }
+
+    public Optional<SessionCredentialsProvider> getCredentialsProvider() {
+        return Optional.ofNullable(sessionCredentialsProvider);
+    }
+
+    public Duration getRequestTimeout() {
+        return requestTimeout;
+    }
+
+    public boolean isSslEnabled() {
+        return sslEnabled;
+    }
+
+    @Beta
+    public boolean isVirtualThreadsEnabled() {
+        return virtualThreadsEnabled;
+    }
+
+    public String getNamespace() {
+        return namespace;
+    }
+
+    public int getMaxStartupAttempts() {
+        return maxStartupAttempts;
+    }
+
+    public Map<String, String> getClientProperties() {
+        return clientProperties;
+    }
+}

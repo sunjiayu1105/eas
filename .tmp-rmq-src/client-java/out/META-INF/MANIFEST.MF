@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+Archiver-Version: Plexus Archiver
+Created-By: Apache Maven 3.9.16
+Built-By: root
+Build-Jdk: 11.0.25
+Specification-Title: rocketmq-client-java
+Specification-Version: 5.2
+Specification-Vendor: The Apache Software Foundation
+Implementation-Title: rocketmq-client-java
+Implementation-Version: 5.2.2
+Implementation-Vendor-Id: org.apache.rocketmq
+Implementation-Vendor: The Apache Software Foundation
+Implementation-URL: https://www.apache.org/rocketmq-client-java-parent/r
+ ocketmq-client-java/
+

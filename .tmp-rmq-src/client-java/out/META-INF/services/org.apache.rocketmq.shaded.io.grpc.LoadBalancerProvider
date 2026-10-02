@@ -1,0 +1,3 @@
+org.apache.rocketmq.shaded.io.grpc.internal.PickFirstLoadBalancerProvider
+org.apache.rocketmq.shaded.io.grpc.util.SecretRoundRobinLoadBalancerProvider$Provider
+org.apache.rocketmq.shaded.io.grpc.util.OutlierDetectionLoadBalancerProvider

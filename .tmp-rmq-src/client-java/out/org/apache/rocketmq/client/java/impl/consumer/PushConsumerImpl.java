@@ -1,0 +1,623 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.rocketmq.client.java.impl.consumer;
+
+import apache.rocketmq.v2.Code;
+import apache.rocketmq.v2.ForwardMessageToDeadLetterQueueRequest;
+import apache.rocketmq.v2.ForwardMessageToDeadLetterQueueResponse;
+import apache.rocketmq.v2.QueryAssignmentRequest;
+import apache.rocketmq.v2.QueryAssignmentResponse;
+import apache.rocketmq.v2.Status;
+import apache.rocketmq.v2.TelemetryCommand;
+import apache.rocketmq.v2.VerifyMessageCommand;
+import apache.rocketmq.v2.VerifyMessageResult;
+import org.apache.rocketmq.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.FutureCallback;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.Futures;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.ListenableFuture;
+import org.apache.rocketmq.shaded.com.google.common.util.concurrent.MoreExecutors;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import org.apache.rocketmq.client.apis.ClientConfiguration;
+import org.apache.rocketmq.client.apis.ClientException;
+import org.apache.rocketmq.client.apis.consumer.ConsumeResult;
+import org.apache.rocketmq.client.apis.consumer.FilterExpression;
+import org.apache.rocketmq.client.apis.consumer.MessageListener;
+import org.apache.rocketmq.client.apis.consumer.PushConsumer;
+import org.apache.rocketmq.client.apis.message.MessageId;
+import org.apache.rocketmq.client.java.exception.StatusChecker;
+import org.apache.rocketmq.client.java.hook.InflightRequestCountInterceptor;
+import org.apache.rocketmq.client.java.hook.MessageHookPoints;
+import org.apache.rocketmq.client.java.hook.MessageHookPointsStatus;
+import org.apache.rocketmq.client.java.hook.MessageInterceptorContext;
+import org.apache.rocketmq.client.java.hook.MessageInterceptorContextImpl;
+import org.apache.rocketmq.client.java.impl.ClientType;
+import org.apache.rocketmq.client.java.message.GeneralMessage;
+import org.apache.rocketmq.client.java.message.GeneralMessageImpl;
+import org.apache.rocketmq.client.java.message.MessageViewImpl;
+import org.apache.rocketmq.client.java.metrics.GaugeObserver;
+import org.apache.rocketmq.client.java.misc.ExcludeFromJacocoGeneratedReport;
+import org.apache.rocketmq.client.java.misc.ExecutorServices;
+import org.apache.rocketmq.client.java.misc.ThreadFactoryImpl;
+import org.apache.rocketmq.client.java.retry.RetryPolicy;
+import org.apache.rocketmq.client.java.route.Endpoints;
+import org.apache.rocketmq.client.java.route.MessageQueueImpl;
+import org.apache.rocketmq.client.java.route.TopicRouteData;
+import org.apache.rocketmq.client.java.rpc.RpcFuture;
+import org.apache.rocketmq.shaded.org.slf4j.Logger;
+import org.apache.rocketmq.shaded.org.slf4j.LoggerFactory;
+
+/**
+ * Default implementation of {@link PushConsumer}
+ *
+ * <p>It is worth noting that in the implementation of push consumer, the message is not actively pushed by the server
+ * to the client, but is obtained by the client actively going to the server.
+ *
+ * @see PushConsumer
+ */
+@SuppressWarnings({"NullableProblems"})
+class PushConsumerImpl extends ConsumerImpl implements PushConsumer {
+    private static final Logger log = LoggerFactory.getLogger(PushConsumerImpl.class);
+
+    protected final MessageListener messageListener;
+    protected final ExecutorService consumptionExecutor;
+    protected final boolean enableFifoConsumeAccelerator;
+
+    final AtomicLong consumptionOkQuantity;
+    final AtomicLong consumptionErrorQuantity;
+
+    private final PushSubscriptionSettings pushSubscriptionSettings;
+    private final Map<String /* topic */, FilterExpression> subscriptionExpressions;
+    private final ConcurrentMap<String /* topic */, Assignments> cacheAssignments;
+    private final int maxCacheMessageCount;
+    private final int maxCacheMessageSizeInBytes;
+    private final boolean enableMessageInterceptorFiltering;
+    private final InflightRequestCountInterceptor inflightRequestCountInterceptor;
+
+    /**
+     * Indicates the times of message reception.
+     */
+    private final AtomicLong receptionTimes;
+    /**
+     * Indicates the quantity of received messages.
+     */
+    private final AtomicLong receivedMessagesQuantity;
+
+    private final ConcurrentMap<MessageQueueImpl, ProcessQueue> processQueueTable;
+    private ConsumeService consumeService;
+
+    private volatile ScheduledFuture<?> scanAssignmentsFuture;
+
+    /**
+     * The caller is supposed to have validated the arguments and handled throwing exception or
+     * logging warnings already, so we avoid repeating args check here.
+     */
+    public PushConsumerImpl(ClientConfiguration clientConfiguration, String consumerGroup,
+        Map<String, FilterExpression> subscriptionExpressions, MessageListener messageListener,
+        int maxCacheMessageCount, int maxCacheMessageSizeInBytes, int consumptionThreadCount,
+        boolean enableFifoConsumeAccelerator) {
+        this(clientConfiguration, consumerGroup, subscriptionExpressions, messageListener, maxCacheMessageCount,
+            maxCacheMessageSizeInBytes, consumptionThreadCount, enableFifoConsumeAccelerator, false);
+    }
+
+    public PushConsumerImpl(ClientConfiguration clientConfiguration, String consumerGroup,
+        Map<String, FilterExpression> subscriptionExpressions, MessageListener messageListener,
+        int maxCacheMessageCount, int maxCacheMessageSizeInBytes, int consumptionThreadCount,
+        boolean enableFifoConsumeAccelerator, boolean enableMessageInterceptorFiltering) {
+        super(clientConfiguration, consumerGroup, subscriptionExpressions.keySet());
+        this.pushSubscriptionSettings = new PushSubscriptionSettings(clientConfiguration, clientId,
+            clientType(), endpoints, consumerGroup, subscriptionExpressions);
+        this.subscriptionExpressions = subscriptionExpressions;
+        this.cacheAssignments = new ConcurrentHashMap<>();
+        this.messageListener = messageListener;
+        this.maxCacheMessageCount = maxCacheMessageCount;
+        this.maxCacheMessageSizeInBytes = maxCacheMessageSizeInBytes;
+        this.enableFifoConsumeAccelerator = enableFifoConsumeAccelerator;
+        this.enableMessageInterceptorFiltering = enableMessageInterceptorFiltering;
+
+        this.receptionTimes = new AtomicLong(0);
+        this.receivedMessagesQuantity = new AtomicLong(0);
+        this.consumptionOkQuantity = new AtomicLong(0);
+        this.consumptionErrorQuantity = new AtomicLong(0);
+
+        this.processQueueTable = new ConcurrentHashMap<>();
+
+        this.consumptionExecutor = ExecutorServices.newConcurrencyLimitedExecutorService(
+            clientConfiguration.isVirtualThreadsEnabled(), consumptionThreadCount, () -> new ThreadPoolExecutor(
+                consumptionThreadCount,
+                consumptionThreadCount,
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                new ThreadFactoryImpl("MessageConsumption", this.getClientId().getIndex())));
+
+        this.inflightRequestCountInterceptor = new InflightRequestCountInterceptor();
+        this.addMessageInterceptor(inflightRequestCountInterceptor);
+    }
+
+    public PushConsumerImpl(ClientConfiguration clientConfiguration, String consumerGroup,
+        Map<String, FilterExpression> subscriptionExpressions, MessageListener messageListener,
+        int maxCacheMessageCount, int maxCacheMessageSizeInBytes, int consumptionThreadCount) {
+        this(clientConfiguration, consumerGroup, subscriptionExpressions, messageListener, maxCacheMessageCount,
+            maxCacheMessageSizeInBytes, consumptionThreadCount, true, false);
+    }
+
+    @Override
+    protected void startUp() throws Exception {
+        try {
+            log.info("Begin to start the rocketmq {}, clientId={}", clientType(), clientId);
+            GaugeObserver gaugeObserver = new ProcessQueueGaugeObserver(processQueueTable, clientId,
+                getConsumerGroup());
+            this.clientMeterManager.setGaugeObserver(gaugeObserver);
+            super.startUp();
+            this.consumeService = createConsumeService();
+            // Scan assignments periodically.
+            scanAssignmentsFuture = getScheduler().scheduleWithFixedDelay(() -> {
+                try {
+                    scanAssignments();
+                } catch (Throwable t) {
+                    log.error("Exception raised while scanning the load assignments, clientId={}", clientId, t);
+                }
+            }, 1, 5, TimeUnit.SECONDS);
+            log.info("The rocketmq {} starts successfully, clientId={}", clientType(), clientId);
+        } catch (Throwable t) {
+            log.error("Exception raised while starting the rocketmq {}, clientId={}",
+                clientType(), clientId, t);
+            shutDown();
+            throw t;
+        }
+    }
+
+    /**
+     * PushConsumerImpl shutdown order
+     * 1. when begin shutdown, do not send any new receive request
+     * 2. cancel scanAssignmentsFuture, do not create new processQueue
+     * 3. waiting all inflight receive request finished or timeout
+     * 4. shutdown consumptionExecutor and waiting all message consumption finished
+     * 5. sleep 1s to ack message async
+     * 6. shutdown clientImpl
+     */
+    @Override
+    protected void shutDown() throws InterruptedException {
+        log.info("Begin to shutdown the rocketmq {}, clientId={}", clientType(), clientId);
+        if (null != scanAssignmentsFuture) {
+            scanAssignmentsFuture.cancel(false);
+        }
+        log.info("Waiting for the inflight receive requests to be finished, clientId={}", clientId);
+        waitingReceiveRequestFinished();
+        log.info("Begin to Shutdown consumption executor, clientId={}", clientId);
+        this.consumptionExecutor.shutdown();
+        ExecutorServices.awaitTerminated(consumptionExecutor);
+        TimeUnit.SECONDS.sleep(1);
+        super.shutDown();
+        log.info("Shutdown the rocketmq {} successfully, clientId={}", clientType(), clientId);
+    }
+
+    private void waitingReceiveRequestFinished() {
+        Duration maxWaitingTime = clientConfiguration.getRequestTimeout()
+            .plus(getSettings().getLongPollingTimeout());
+        long endTime = System.currentTimeMillis() + maxWaitingTime.toMillis();
+        try {
+            while (true) {
+                long inflightReceiveRequestCount = inflightRequestCountInterceptor.getInflightReceiveRequestCount();
+                if (inflightReceiveRequestCount <= 0) {
+                    log.info("All inflight receive requests have been finished, clientId={}", clientId);
+                    break;
+                } else if (System.currentTimeMillis() > endTime) {
+                    log.warn("Timeout waiting for all inflight receive requests to be finished, clientId={}, "
+                        + "inflightReceiveRequestCount={}", clientId, inflightReceiveRequestCount);
+                    break;
+                }
+                TimeUnit.MILLISECONDS.sleep(100);
+            }
+        } catch (Exception e) {
+            log.error("Unexpected exception while waiting for the inflight receive requests to be finished, "
+                + "clientId={}", clientId, e);
+        }
+    }
+
+    protected ConsumeService createConsumeService() {
+        final ScheduledExecutorService scheduler = this.getClientManager().getScheduler();
+        if (getSettings().isFifo()) {
+            log.info("Create FIFO consume service, consumerGroup={}, clientId={}, enableFifoConsumeAccelerator={}",
+                getConsumerGroup(), clientId, enableFifoConsumeAccelerator);
+            return new FifoConsumeService(clientId, getConsumerGroup(), messageListener,
+                    consumptionExecutor, this, scheduler, enableFifoConsumeAccelerator);
+        }
+        log.info("Create standard consume service, consumerGroup={}, clientId={}", getConsumerGroup(), clientId);
+        return new StandardConsumeService(clientId, getConsumerGroup(),
+                messageListener, consumptionExecutor, this, scheduler);
+    }
+
+    /**
+     * @see PushConsumer#getSubscriptionExpressions()
+     */
+    @Override
+    public Map<String, FilterExpression> getSubscriptionExpressions() {
+        return new HashMap<>(subscriptionExpressions);
+    }
+
+    /**
+     * @see PushConsumer#subscribe(String, FilterExpression)
+     */
+    @Override
+    public PushConsumer subscribe(String topic, FilterExpression filterExpression) throws ClientException {
+        checkRunning();
+        final ListenableFuture<TopicRouteData> future = getRouteData(topic);
+        handleClientFuture(future);
+        subscriptionExpressions.put(topic, filterExpression);
+        return this;
+    }
+
+    /**
+     * @see PushConsumer#unsubscribe(String)
+     */
+    @Override
+    public PushConsumer unsubscribe(String topic) {
+        checkRunning();
+        subscriptionExpressions.remove(topic);
+        return this;
+    }
+
+    private ListenableFuture<Endpoints> pickEndpointsToQueryAssignments(String topic) {
+        final ListenableFuture<TopicRouteData> future = getRouteData(topic);
+        return Futures.transformAsync(future, topicRouteData -> {
+            if (topicRouteData.getTotalEndpoints().contains(this.getEndpoints())) {
+                return Futures.immediateFuture(this.getEndpoints());
+            }
+            Endpoints endpoints = topicRouteData.pickEndpointsToQueryAssignments();
+            return Futures.immediateFuture(endpoints);
+        }, MoreExecutors.directExecutor());
+    }
+
+    private QueryAssignmentRequest wrapQueryAssignmentRequest(String topic) {
+        apache.rocketmq.v2.Resource topicResource = apache.rocketmq.v2.Resource.newBuilder()
+            .setResourceNamespace(clientConfiguration.getNamespace())
+            .setName(topic)
+            .build();
+        return QueryAssignmentRequest.newBuilder().setTopic(topicResource)
+            .setEndpoints(endpoints.toProtobuf()).setGroup(getProtobufGroup()).build();
+    }
+
+    ListenableFuture<Assignments> queryAssignment(final String topic) {
+        final ListenableFuture<Endpoints> future0 = pickEndpointsToQueryAssignments(topic);
+        return Futures.transformAsync(future0, endpoints -> {
+            final QueryAssignmentRequest request = wrapQueryAssignmentRequest(topic);
+            final Duration requestTimeout = clientConfiguration.getRequestTimeout();
+            final RpcFuture<QueryAssignmentRequest, QueryAssignmentResponse> future1 =
+                this.getClientManager().queryAssignment(endpoints, request, requestTimeout);
+            return Futures.transformAsync(future1, response -> {
+                final Status status = response.getStatus();
+                StatusChecker.check(status, future1);
+                final List<Assignment> assignmentList = response.getAssignmentsList().stream().map(assignment ->
+                    new Assignment(new MessageQueueImpl(assignment.getMessageQueue()))).collect(Collectors.toList());
+                final Assignments assignments = new Assignments(assignmentList);
+                return Futures.immediateFuture(assignments);
+            }, MoreExecutors.directExecutor());
+        }, MoreExecutors.directExecutor());
+    }
+
+    /**
+     * Drop {@link ProcessQueue} by {@link MessageQueueImpl}, {@link ProcessQueue} must be removed before it is dropped.
+     *
+     * @param mq message queue.
+     */
+    void dropProcessQueue(MessageQueueImpl mq) {
+        final ProcessQueue pq = processQueueTable.remove(mq);
+        if (null != pq) {
+            pq.drop();
+        }
+    }
+
+    /**
+     * Create process queue and add it into {@link #processQueueTable}, return {@link Optional#empty()} if mapped
+     * process queue already exists.
+     * <p>
+     * This function and {@link #dropProcessQueue(MessageQueueImpl)} make sures that process queue is not dropped if
+     * it is contained in {@link #processQueueTable}, once process queue is dropped, it must have been removed
+     * from {@link #processQueueTable}.
+     *
+     * @param mq               message queue.
+     * @param filterExpression filter expression of topic.
+     * @return optional process queue.
+     */
+    protected Optional<ProcessQueue> createProcessQueue(MessageQueueImpl mq, final FilterExpression filterExpression) {
+        final ProcessQueueImpl processQueue = new ProcessQueueImpl(this, mq, filterExpression);
+        final ProcessQueue previous = processQueueTable.putIfAbsent(mq, processQueue);
+        if (null != previous) {
+            return Optional.empty();
+        }
+        return Optional.of(processQueue);
+    }
+
+    @VisibleForTesting
+    void syncProcessQueue(String topic, Assignments assignments, FilterExpression filterExpression) {
+        Set<MessageQueueImpl> latest = new HashSet<>();
+
+        final List<Assignment> assignmentList = assignments.getAssignmentList();
+        for (Assignment assignment : assignmentList) {
+            latest.add(assignment.getMessageQueue());
+        }
+
+        Set<MessageQueueImpl> activeMqs = new HashSet<>();
+
+        for (Map.Entry<MessageQueueImpl, ProcessQueue> entry : processQueueTable.entrySet()) {
+            final MessageQueueImpl mq = entry.getKey();
+            final ProcessQueue pq = entry.getValue();
+            if (!topic.equals(mq.getTopic())) {
+                continue;
+            }
+
+            if (!latest.contains(mq)) {
+                log.info("Drop message queue according to the latest assignmentList, mq={}, clientId={}", mq,
+                    clientId);
+                dropProcessQueue(mq);
+                continue;
+            }
+
+            if (pq.expired()) {
+                log.warn("Drop message queue because it is expired, mq={}, clientId={}", mq, clientId);
+                dropProcessQueue(mq);
+                continue;
+            }
+            activeMqs.add(mq);
+        }
+
+        for (MessageQueueImpl mq : latest) {
+            if (activeMqs.contains(mq)) {
+                continue;
+            }
+            final Optional<ProcessQueue> optionalProcessQueue = createProcessQueue(mq, filterExpression);
+            if (optionalProcessQueue.isPresent()) {
+                log.info("Start to fetch message from remote, mq={}, clientId={}", mq, clientId);
+                optionalProcessQueue.get().fetchMessageImmediately();
+            }
+        }
+    }
+
+    @VisibleForTesting
+    void scanAssignments() {
+        try {
+            log.debug("Start to scan assignments periodically, clientId={}", clientId);
+            for (Map.Entry<String, FilterExpression> entry : subscriptionExpressions.entrySet()) {
+                final String topic = entry.getKey();
+                final FilterExpression filterExpression = entry.getValue();
+                final Assignments existed = cacheAssignments.get(topic);
+                final ListenableFuture<Assignments> future = queryAssignment(topic);
+                Futures.addCallback(future, new FutureCallback<Assignments>() {
+                    @Override
+                    public void onSuccess(Assignments latest) {
+                        if (latest.getAssignmentList().isEmpty()) {
+                            if (null == existed || existed.getAssignmentList().isEmpty()) {
+                                log.info("Acquired empty assignments from remote, would scan later, topic={}, "
+                                    + "clientId={}", topic, clientId);
+                                return;
+                            }
+                            log.info("Attention!!! acquired empty assignments from remote, but existed assignments"
+                                + " is not empty, topic={}, clientId={}", topic, clientId);
+                        }
+
+                        if (!latest.equals(existed)) {
+                            log.info("Assignments of topic={} has changed, {} => {}, clientId={}", topic, existed,
+                                latest, clientId);
+                            syncProcessQueue(topic, latest, filterExpression);
+                            cacheAssignments.put(topic, latest);
+                            return;
+                        }
+                        log.debug("Assignments of topic={} remains the same, assignments={}, clientId={}", topic,
+                            existed, clientId);
+                        // Process queue may be dropped, need to be synchronized anyway.
+                        syncProcessQueue(topic, latest, filterExpression);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        log.error("Exception raised while scanning the assignments, topic={}, clientId={}", topic,
+                            clientId, t);
+                    }
+                }, MoreExecutors.directExecutor());
+            }
+        } catch (Throwable t) {
+            log.error("Exception raised while scanning the assignments for all topics, clientId={}", clientId, t);
+        }
+    }
+
+    @Override
+    public PushSubscriptionSettings getSettings() {
+        return pushSubscriptionSettings;
+    }
+
+    /**
+     * @see PushConsumer#close()
+     */
+    @Override
+    public void close() {
+        this.stopAsync().awaitTerminated();
+    }
+
+    int getQueueSize() {
+        return processQueueTable.size();
+    }
+
+    int cacheMessageBytesThresholdPerQueue() {
+        final int size = this.getQueueSize();
+        // ALl process queues are removed, no need to cache messages.
+        if (size <= 0) {
+            return 0;
+        }
+        return Math.max(1, maxCacheMessageSizeInBytes / size);
+    }
+
+    int cacheMessageCountThresholdPerQueue() {
+        final int size = this.getQueueSize();
+        // All process queues are removed, no need to cache messages.
+        if (size <= 0) {
+            return 0;
+        }
+        return Math.max(1, maxCacheMessageCount / size);
+    }
+
+    public AtomicLong getReceptionTimes() {
+        return receptionTimes;
+    }
+
+    public AtomicLong getReceivedMessagesQuantity() {
+        return receivedMessagesQuantity;
+    }
+
+    public ConsumeService getConsumeService() {
+        return consumeService;
+    }
+
+    @Override
+    public void onVerifyMessageCommand(Endpoints endpoints, VerifyMessageCommand verifyMessageCommand) {
+        final String nonce = verifyMessageCommand.getNonce();
+        final MessageViewImpl messageView = MessageViewImpl.fromProtobuf(verifyMessageCommand.getMessage());
+        final MessageId messageId = messageView.getMessageId();
+        final ListenableFuture<ConsumeResult> future = consumeService.consume(messageView);
+        Futures.addCallback(future, new FutureCallback<ConsumeResult>() {
+            @Override
+            public void onSuccess(ConsumeResult consumeResult) {
+                Code code = ConsumeResult.SUCCESS.equals(consumeResult) ? Code.OK : Code.FAILED_TO_CONSUME_MESSAGE;
+                Status status = Status.newBuilder().setCode(code).build();
+                final VerifyMessageResult verifyMessageResult =
+                    VerifyMessageResult.newBuilder().setNonce(nonce).build();
+                TelemetryCommand command = TelemetryCommand.newBuilder()
+                    .setVerifyMessageResult(verifyMessageResult)
+                    .setStatus(status)
+                    .build();
+                try {
+                    telemetry(endpoints, command);
+                } catch (Throwable t) {
+                    log.error("Failed to send message verification result command, endpoints={}, command={}, "
+                        + "messageId={}, clientId={}", endpoints, command, messageId, clientId, t);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                // Should never reach here.
+                log.error("[Bug] Failed to get message verification result, endpoints={}, messageId={}, "
+                    + "clientId={}", endpoints, messageId, clientId, t);
+            }
+        }, MoreExecutors.directExecutor());
+    }
+
+    private ForwardMessageToDeadLetterQueueRequest wrapForwardMessageToDeadLetterQueueRequest(
+        MessageViewImpl messageView) {
+        final apache.rocketmq.v2.Resource topicResource =
+            apache.rocketmq.v2.Resource.newBuilder()
+                .setResourceNamespace(clientConfiguration.getNamespace())
+                .setName(messageView.getTopic())
+                .build();
+
+        ForwardMessageToDeadLetterQueueRequest.Builder builder = ForwardMessageToDeadLetterQueueRequest.newBuilder()
+            .setGroup(getProtobufGroup())
+            .setTopic(topicResource)
+            .setReceiptHandle(messageView.getReceiptHandle())
+            .setMessageId(messageView.getMessageId().toString())
+            .setDeliveryAttempt(messageView.getDeliveryAttempt())
+            .setMaxDeliveryAttempts(getRetryPolicy().getMaxAttempts());
+        if (isLiteConsumer()) {
+            messageView.getLiteTopic().ifPresent(builder::setLiteTopic);
+        }
+        return builder.build();
+    }
+
+    public RpcFuture<ForwardMessageToDeadLetterQueueRequest, ForwardMessageToDeadLetterQueueResponse>
+    forwardMessageToDeadLetterQueue(final MessageViewImpl messageView) {
+        // Intercept before forwarding message to DLQ.
+        final List<GeneralMessage> generalMessages = Collections.singletonList(new GeneralMessageImpl(messageView));
+        MessageInterceptorContextImpl context = new MessageInterceptorContextImpl(MessageHookPoints.FORWARD_TO_DLQ);
+        doBefore(context, generalMessages);
+
+        final Endpoints endpoints = messageView.getEndpoints();
+        RpcFuture<ForwardMessageToDeadLetterQueueRequest, ForwardMessageToDeadLetterQueueResponse> future;
+        final ForwardMessageToDeadLetterQueueRequest request =
+            wrapForwardMessageToDeadLetterQueueRequest(messageView);
+        future = this.getClientManager().forwardMessageToDeadLetterQueue(endpoints, request,
+            clientConfiguration.getRequestTimeout());
+        Futures.addCallback(future, new FutureCallback<ForwardMessageToDeadLetterQueueResponse>() {
+            @Override
+            public void onSuccess(ForwardMessageToDeadLetterQueueResponse response) {
+                // Intercept after forwarding message to DLQ.
+                MessageHookPointsStatus status = Code.OK.equals(response.getStatus().getCode()) ?
+                    MessageHookPointsStatus.OK : MessageHookPointsStatus.ERROR;
+                final MessageInterceptorContext context0 = new MessageInterceptorContextImpl(context, status);
+                doAfter(context0, generalMessages);
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                // Intercept after forwarding message to DLQ.
+                final MessageInterceptorContext context0 = new MessageInterceptorContextImpl(context,
+                    MessageHookPointsStatus.ERROR);
+                doAfter(context0, generalMessages);
+            }
+        }, MoreExecutors.directExecutor());
+        return future;
+    }
+
+    @ExcludeFromJacocoGeneratedReport
+    @Override
+    public void doStats() {
+        final long receptionTimes = this.receptionTimes.getAndSet(0);
+        final long receivedMessagesQuantity = this.receivedMessagesQuantity.getAndSet(0);
+
+        final long consumptionOkQuantity = this.consumptionOkQuantity.getAndSet(0);
+        final long consumptionErrorQuantity = this.consumptionErrorQuantity.getAndSet(0);
+
+        log.info("clientId={}, consumerGroup={}, receptionTimes={}, receivedMessagesQuantity={}, "
+                + "consumptionOkQuantity={}, consumptionErrorQuantity={}", clientId, getConsumerGroup(), receptionTimes,
+            receivedMessagesQuantity, consumptionOkQuantity, consumptionErrorQuantity);
+        processQueueTable.values().forEach(ProcessQueue::doStats);
+    }
+
+    public RetryPolicy getRetryPolicy() {
+        return getSettings().getRetryPolicy();
+    }
+
+    public ExecutorService getConsumptionExecutor() {
+        return consumptionExecutor;
+    }
+
+    public boolean isEnableMessageInterceptorFiltering() {
+        return enableMessageInterceptorFiltering;
+    }
+
+    @Override
+    protected ClientType clientType() {
+        return ClientType.PUSH_CONSUMER;
+    }
+}
