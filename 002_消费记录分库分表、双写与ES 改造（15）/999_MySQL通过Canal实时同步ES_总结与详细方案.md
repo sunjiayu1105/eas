@@ -39,7 +39,14 @@ Canal Server 负责连接 MySQL、读取和解析日志，不负责 ES 字段映
 
 ### 1.4 与当前项目的版本基线
 
-当前项目固定使用 Java 8、Spring Boot 2.7.18、rocketmq-spring-boot-starter 2.3.0、org.apache.rocketmq:rocketmq-client 5.2.0、MySQL 8.0.33 和 Elasticsearch 7.17.15。文章使用 MySQL 8.0.35、Elasticsearch 7.17.9、Canal 1.1.7 和 JDK 8；其中 Java 版本相同，其他版本不能直接视为兼容。项目尚未锁定 Canal 发行包，Canal Server、Adapter、MySQL 驱动、认证方式和 ES 适配器必须在联调环境中核对。
+当前项目固定使用 Java 8、Spring Boot 2.7.18、rocketmq-spring-boot-starter 2.3.0、org.apache.rocketmq:rocketmq-client 5.2.0、MySQL 8.0.33、Elasticsearch 7.17.15、Canal Server/Adapter 1.1.7。文章使用 MySQL 8.0.35、Elasticsearch 7.17.9、Canal 1.1.7 和 JDK 8；其中 Java 版本相同，其他版本不能直接视为兼容。项目已确定 Canal 1.1.7 版本边界，实际发行包、MySQL 驱动、认证方式和 ES 适配器仍必须在联调环境中核对。源码核对链接采用 `canal-1.1.7` 标签。
+
+当前项目主链路见 005～009：一个单机 Canal Server 进程承载 db0、db1，分别维护本地进度，采用原生 RocketMQ 模式发布消息，RocketMQ 消费与 ES 写入服务负责历史索引定位和写入。下文的 Adapter 接入、映射、ETL 和性能结果为文章方案说明，不能作为当前主链路配置。
+
+### 已确认规则
+
+- 当前项目的 Canal Server 与 RocketMQ/ES 参考文章保持单机部署方式一致，使用 file-instance.xml 本地位点模板，不配置 ZooKeeper 主备，故障后人工核对并重启恢复。
+- 本文整理的 Adapter、ETL、文章版本及性能结果保留为参考方案，不能视为当前主链路的配置或运行结果。
 
 ## 2. 详细方案
 
@@ -47,11 +54,11 @@ Canal Server 负责连接 MySQL、读取和解析日志，不负责 ES 字段映
 
 **确定同步范围**
 
-文章只演示一个 MySQL 库中的一张表。当前项目有 2 个独立的新库实例，每个实例 16 张物理表，共 32 个分片。候选拓扑是每个新库实例使用独立 destination 和独立的 Server、Adapter 链路，再写入同一套 Elasticsearch 集群；最终是“一进程多 destination”还是“两套进程”，仍需结合故障隔离和运维资源确认。
+文章只演示一个 MySQL 库中的一张表。当前项目有 2 个独立的新库实例，每个实例 16 张物理表，共 32 个分片。当前配置 db0、db1 两个独立 destination，由一个单机 Server 进程承载，再经 Server 原生 RocketMQ 模式和 ES 写入服务写入 ES；Adapter 双链路仅保留作文章方案对照。
 
 **核对字段契约**
 
-文章选择 id、biz_id、biz_type、encrypt_mode、sign_user、tx_hash、from_addr、data、channel_id、block_height、tx_time 等字段。当前项目不能直接复用这份字段清单，应以新表 DDL、业务字段含义和 [012_ES Mapping 设计](<D:/000_ 找工作_2026/sources/E账通/002_消费记录分库分表、双写与ES 改造（15）/012_ES Mapping 设计.md:5>) 为准。项目规划使用 consumeId 作为稳定文档标识，tradeAmount 的单位为分，tradeTime 支撑排序和范围查询；完整字段仍需完成核对。
+文章选择 id、biz_id、biz_type、encrypt_mode、sign_user、tx_hash、from_addr、data、channel_id、block_height、tx_time 等字段。当前项目不能直接复用这份字段清单，应以新表 DDL、业务字段含义和 [013_ES Mapping 设计](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/013_ES Mapping 设计.md:5>) 为准。项目规划使用 consumeId 作为稳定文档标识，tradeAmount 的单位为分，tradeTime 支撑排序和范围查询；完整字段仍需完成核对。
 
 **准备访问策略**
 
@@ -114,7 +121,7 @@ SELECT @@GLOBAL.server_uuid AS server_uuid,
 
 **准备发行包和目录**
 
-文章使用 canal.deployer-1.1.7.tar.gz，并将其解压到 /data/canal/Server。当前项目只能把它当作文章示例；正式部署前要锁定发行包来源，优先使用可校验的官方发布包，并核对 Java 8、MySQL 8.0.33 和认证方式。
+文章使用 canal.deployer-1.1.7.tar.gz，并将其解压到 /data/canal/Server。该段仅描述文章示例；当前项目采用 Canal 1.1.7，正式部署仍要核对可校验的官方发行包及 Java 8、MySQL 8.0.33 和认证方式。
 
 **配置 instance.properties**
 
@@ -221,7 +228,7 @@ esMapping:
 - dynamic: strict 下是否会因为漏配字段而使 _bulk 某一项失败；
 - rollover、别名、删除和重试是否能定位原具体索引。
 
-当前项目 Mapping 仍以 [012_ES Mapping 设计](<D:/000_ 找工作_2026/sources/E账通/002_消费记录分库分表、双写与ES 改造（15）/012_ES Mapping 设计.md:5>) 为准。索引创建成功后，再启动 Adapter 并检查映射文件是否加载、外部适配器是否注册、TCP 订阅是否成功。
+当前项目 Mapping 仍以 [013_ES Mapping 设计](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/013_ES Mapping 设计.md:5>) 为准。索引创建成功后，再启动 ES 写入服务并检查原生 RocketMQ 订阅、消息解析和索引路由是否按候选配置生效。
 
 ### 2.6 执行历史全量初始化
 
@@ -292,20 +299,20 @@ curl -X POST http://<Adapter_HOST>:<管理端口>/etl/es7/proof_202311.yml
 | 数据来源 | 单个 ibds2 库的一张表 | 2 个独立新库实例，每库 16 张表；destination 和链路需按实例规划 |
 | MySQL | 8.0.35 | 8.0.33；需核对 GTID、ROW、完整行镜像和日志保留 |
 | Elasticsearch | 7.17.9 | 7.17.15；Mapping、别名、rollover 和 _id 规则以项目文档为准 |
-| Canal | 1.1.7 | 项目版本尚未锁定；需验证发行包、驱动、Adapter 和认证兼容性 |
-| 连接方式 | Adapter TCP 消费，ES 示例使用 Transport 9300 | TCP 消费可作候选；ES 使用 REST 9200 还是 Transport 9300 必须联调确认 |
+| Canal | 1.1.7 | Server/Adapter 版本边界已确定，主链路使用 Server 原生 RocketMQ 模式；实际发行包和认证待验证 |
+| 连接方式 | Adapter TCP 消费，ES 示例使用 Transport 9300 | 当前由 Canal Server 原生 RocketMQ 生产端发布消息；自定义 RocketMQ 消费与 ES 写入服务按 ES7 REST API 编写示例，实际客户端与连接待验证 |
 | 文档 ID | SQL 中的 id | 规划使用 consumeId；必须保持同一具体索引内稳定定位 |
-| 全量初始化 | /etl/es7/proof_202311.yml | 可参考接口，但要和 GTID 基线、历史验收、增量追赶配套执行 |
+| 全量初始化 | /etl/es7/proof_202311.yml | 当前按历史导入前 GTID 基线追赶导入事件，不把文章的 Adapter ETL 接口作为主链路步骤 |
 | 校验 | 文章只验证增删改查询 | 项目另有旧表与新表、新表与 ES 两项独立校验 |
 | 性能结论 | 120 万行约 86～87 秒 | 仅为文章环境结果，当前项目需按实际硬件、索引和批次重新压测 |
 
 ## 4. 落地前待确认事项
 
-1. 锁定 Canal Server、Adapter 和 ES 适配器发行包，并核对其与 Java 8、MySQL 8.0.33、Elasticsearch 7.17.15 的兼容性。
-2. 确定 2 个 MySQL 实例是独立进程还是一个 Server 进程加载多个 destination，并明确故障隔离、位点存储和运维方式。
+1. 核对 Canal Server 1.1.7 发行包原生 RocketMQ 模式、自定义消费服务的依赖树、MQ Broker 和 ES 客户端；文章 Adapter 发行包另作参考验证。
+2. 按两个独立 MySQL 实例、单机 Server 和两个 destination 的拓扑，验证本地位点持久化、进程故障影响及人工重启恢复；文件丢失或日志断档时暂停复核。
 3. 根据新表 DDL 完成字段清单、consumeId、serialNo、金额单位、时间格式和删除事件字段的 Mapping 契约。
 4. 确定索引命名、写别名、rollover 和历史索引更新/删除的定位方案。
-5. 核对 syncBatchSize、TCP batch.size、commitBatch、ES _bulk 子批次、确认和重试的真实行为。
+5. 核对原生 RocketMQ 消息格式、发布结果、稳定事件 ID、顺序消费、ES Bulk item 和各阶段确认；Adapter syncBatchSize/commitBatch 仅属文章参数。
 6. 演练网络中断、ES 部分失败、JDBC 查询失败、进程重启、binlog 保留不足和重复消费，并把结果写入上线验收记录。
 7. 补齐密钥管理、最小权限、审计日志、监控告警和失败事件保存方案。
 
@@ -314,3 +321,4 @@ curl -X POST http://<Adapter_HOST>:<管理端口>/etl/es7/proof_202311.yml
 文章可以作为“ROW binlog → Canal Server → Canal Adapter → Elasticsearch”链路的配置入门和全量初始化参考，但不能直接作为当前项目的生产实施方案。文中示例地址、账号、密码、版本、Transport 连接、批次值和 120 万行耗时均不能原样套用。
 
 本文仅完成原文的静态梳理、技术事实校正和项目适配分析，未连接 MySQL、Canal 或 Elasticsearch，未执行全量 ETL、增量消费、重启恢复、_bulk 失败重试和压测。因此，本文不表示项目链路已经运行验证，也不表示版本兼容、数据一致性或生产性能已经验收。
+

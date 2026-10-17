@@ -9,11 +9,16 @@
 
 > 物理命名已确认：两个独立实例的库名均为 eas，每个实例包含 consume_record_01～consume_record_16。下文 consume_db0、consume_db1 及宽泛表名正则仅保留为旧示例，不是当前物理命名；当前过滤配置以 007 为准，db0、db1 仍是任务名。
 
-> 复制身份示例范围：本文后续 1001、1002 等固定 slaveId 仅用于解释复制身份区别，不作为当前集群配置。007 已按 Canal 1.1.7 官方模板改为保留自动生成机制，实际身份及冲突仍需核验；不能把这里的固定值直接放入集群共享 Instance 配置。官方依据见 007 第 9 节。
+> 复制身份示例范围：本文后续 1001、1002 等固定 slaveId 仅用于解释复制身份区别，不作为当前项目配置。007 已按 Canal 1.1.7 官方模板改为保留自动生成机制，实际身份及冲突仍需核验；不能直接复制这里的固定值作为当前 Instance 配置。官方依据见 [007 第 8 节“版本核对依据与边界”](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/008_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md:257>)。
 
-> 当前配置入口说明：项目已在 007 中选定 Canal Admin 集中管理。本文后续本地目录和文件示例仅用于理解公共配置与 Instance 配置的逻辑归属，不再作为当前部署入口；实际在 Admin 中管理集群和 db0、db1，Server 本地保留接入 Admin 的引导配置。Server、destination 与两个分库实例的对应关系不变。
+> 当前配置入口说明：项目按 007 使用单机 Canal Server，一个进程读取本地配置并加载 db0、db1，使用 file-instance.xml 本地位点模板，不使用 ZooKeeper 或 Canal Admin。本文后续本地目录和文件示例用于说明公共配置与 Instance 配置的逻辑归属；两个 destination 与两个分库实例仍分别对应。
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
+
+## 已确认规则
+
+- 当前 Canal Server 与参考文章保持单机部署方式一致，由一个 Server 进程承载两个独立 destination，各自保存本地进度，故障后人工核对并重启恢复；不配置自动主备切换。
+- 后续 Adapter 进程与固定复制身份仅用于历史或关系示例，当前主链路配置以 007、008 为准，单机容量与恢复效果仍待验证。
 
 ## 一、核心结论
 
@@ -37,7 +42,7 @@ canal.destinations=db0,db1
 - 一个 Canal Server 进程可以同时加载多个 destination；
 - 一个 Canal Adapter 进程也可以同时配置多个对应实例。
 
-单个 Server 可同时承载两个任务，下面仅展示该节点内的逻辑关系；当前完整部署按 007 使用两台不同主机上的 Server，接入 Admin 中的同一集群，两台均具备承载这两个任务的配置：
+单个 Server 可同时承载两个任务；当前部署按 007 使用 1 台主机上的 1 个 Server 进程，分别配置 db0、db1 两个 destination。下面的 Server 部分与当前拓扑一致，Adapter 部分仅保留为关系示例：
 
 ```text
 一个 Canal Server 进程
@@ -49,7 +54,7 @@ canal.destinations=db0,db1
   └── instance=db1
 ```
 
-图中是**一个 Server 进程内的两个 destination**，不是完整集群只有一个进程，也不是一个 destination 同时监听两个独立的 MySQL 实例。完整集群由 ZooKeeper 按 destination 分别协调运行资格，两个任务允许同机或分布运行，不强制绑定切换；单节点承接两个任务的容量仍需验证。
+图中是**一个 Server 进程内的两个 destination**，分别监听两个独立 MySQL 实例，不是一个 destination 同时监听两个实例。两个通道各自维护源库和本地进度，但该进程故障会同时中断两条通道；人工重启时分别核对进度。单机承接两个任务的容量与恢复效果仍需验证。
 
 ## 二、为什么两个独立 MySQL 实例需要两个 destination
 
@@ -259,3 +264,4 @@ Canal → VIP 或代理 → 当前 MySQL 主库
 ```text
 一个 destination → MySQL 实例 0 + MySQL 实例 1
 ```
+

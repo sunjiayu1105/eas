@@ -30,7 +30,7 @@ MySQL 仍然是交易权威数据源。单笔详情、资金确认和最终交�
 
 **完整字段清单待确认**
 
-原方案还提及 `serialNo`、`version`、创建和更新时间，接口包含支付方式及客户定位需求。需核对新表 DDL、字段别名、Adapter 输出和比较清单，再判断是补充 Mapping 还是调整字段契约。当前保留 JSON 原样，不把尚未确认的字段删减或扩充为事实。
+原方案还提及 `serialNo`、`version`、创建和更新时间，接口包含支付方式及客户定位需求。需核对新表 DDL、自定义事件转换输出和比较清单（原 Adapter 字段别名仅属历史方案），再判断是补充 Mapping 还是调整字段契约。当前保留 JSON 原样，不把尚未确认的字段删减或扩充为事实。
 
 ## 3. Mapping 配置的设计方法
 
@@ -270,3 +270,4 @@ Mapping 本身不能自动解决以下问题：
 `doc_values` 职责参考 [ES 7.17.15 官方文档源码](https://github.com/elastic/elasticsearch/blob/v7.17.15/docs/reference/mapping/params/doc-values.asciidoc)。`index: false` 的 `consumeId` 不应承担普通 `term` 过滤，相关索引检查见 [7.17.15 TermBasedFieldType](https://github.com/elastic/elasticsearch/blob/v7.17.15/server/src/main/java/org/elasticsearch/index/mapper/TermBasedFieldType.java)；按文档 ID 定位应使用 `_id` 对应的 API，并处理具体索引范围。
 
 核验结论仅限于文档层面的 Mapping JSON、字段数量、配置统计、排序规则、分页条件和 `dynamic: "strict"` 语义检查。Canal 实际配置、查询代码和线上索引仍需在运行环境中进一步验证。
+

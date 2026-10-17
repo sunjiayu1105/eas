@@ -2,6 +2,8 @@
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
+> 当前链路对照：005～009 已采用 Canal Server 原生 RocketMQ 模式、RocketMQ 和自定义 RocketMQ 消费与 ES 写入服务。下文 Adapter 的时区与 JDBC 连接说明保留为历史方案；当前服务须在原生消息解析与 ES 序列化过程中核对相同时间点，不能认为历史 Adapter 配置仍是当前接入配置。
+
 **目标：各环节表示同一个时间点**
 
 MySQL、Canal Adapter 和查询接口要对同一交易时间使用一致的业务时区。最终写入 ES 的日期应能明确表示时间点，例如带偏移的 ISO 8601 字符串或毫秒时间戳；仅设置 JVM 时区不能证明整条链路正确。
@@ -66,4 +68,5 @@ SELECT @@global.time_zone,
 
 ## 5. 验证边界
 
-本次清理了 Anki 导出头、包裹引号及 HTML 转义，恢复为普通 Markdown；未连接数据库或运行 Adapter。实际字段类型、JDBC 驱动、转换代码、发往 ES 的 JSON 与查询解析链路仍需联调。Mapping 详见[消费记录 ES Mapping 设计](<D:/000_ 找工作_2026/sources/E账通/002_消费记录分库分表、双写与ES 改造（15）/999_消费记录 ES Mapping 设计.md:1>)。
+本次清理了 Anki 导出头、包裹引号及 HTML 转义，恢复为普通 Markdown；未连接数据库或运行 Adapter。实际字段类型、JDBC 驱动、转换代码、发往 ES 的 JSON 与查询解析链路仍需联调。Mapping 详见[消费记录 ES Mapping 设计](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/999_消费记录 ES Mapping 设计.md:1>)。
+

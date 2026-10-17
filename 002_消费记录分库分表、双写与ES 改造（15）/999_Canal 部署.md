@@ -1,10 +1,10 @@
 # Canal 部署与上线核验
 
-> 物理命名更新：两个实例均使用 eas 库，分表编号为 01～16。下文 consume_db0、consume_db1 和 00～15 是历史模板值，不应复制为当前配置；当前 Server 过滤及 Adapter 数据源名称见 007、008。历史授权和 JDBC 示例同样须按 eas 核对后重新生成。
+> 物理命名更新：两个实例均使用 eas 库，分表编号为 01～16。下文 consume_db0、consume_db1 和 00～15 是历史模板值，不应复制为当前配置；当前 Server 过滤及自定义事件契约见 007、008；Adapter 数据源和映射为历史模板。历史授权和 JDBC 示例同样须按 eas 核对后重新生成。
 
-> 当前核查补充：007 已补充官方文档及 canal-1.1.7 模板依据，采用自动生成 slaveId，并按 default-instance.xml 描述 ZooKeeper 元数据持久化。本文固定 slaveId 和其他历史模板不得直接作为当前部署配置；运行时恢复和容量仍需验证。
+> 当前核查补充：007 采用自动生成 slaveId，并按官方 canal.properties 的默认 file-instance.xml 入口描述本地位点与单机恢复。本文固定 slaveId 和 Adapter 部署内容保留为历史模板，不得直接作为当前配置；file-instance.xml 入口一致不代表历史模板的其他参数可直接复用。当前主链路采用 Canal Server 原生 RocketMQ 模式，由 RocketMQ 消费与 ES 写入服务承接，实际模板加载、发布、本地落盘、恢复和容量仍需验证。
 
-> 历史候选方案说明：本文保留原部署模板供参考，不作为当前已确认的 Server 配置入口。项目现已在 007 选定 Canal Admin 集中管理集群、Server 和 db0、db1 的 Instance 配置，Server 本地保留接入 Admin 的引导配置；本文本地配置路径及“版本待锁定”等旧表述应按历史候选内容理解。当前 Server/Adapter 版本为 1.1.7，实际加载和部署仍待验证。此前待定的位点丢失恢复规则不因本次配置管理变更而确定。
+> 历史候选方案说明：本文保留原部署模板供参考，不作为当前已确认的 Server 配置入口。项目在 007 中采用单机 Server，一个进程读取本地 `canal.properties` 和各 destination 的 `instance.properties`，承载 db0、db1，不使用 ZooKeeper、Canal Admin 和管理库；本文中 Admin 集中管理、Adapter 双链路及人工主备模板均保留为历史候选说明，不作为当前部署安排。当前 Server/Adapter 版本为 1.1.7，实际加载和部署仍待验证；位点丢失后的恢复策略不能由历史模板自动推定。
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -16,6 +16,11 @@ Spring Boot：2.7.18
 MySQL：8.0.33
 Elasticsearch：7.17.15
 ```
+
+## 已确认规则
+
+- 当前项目 Canal Server 按 007 与参考文章保持单机部署方式一致，使用 file-instance.xml 本地位点模板，两个 destination 各自维护进度，故障后人工核对并重启恢复。
+- 本文后续的 Adapter 双链路、人工主备、固定 slaveId 和旧库表命名保留为历史候选模板；当前配置以 007、008 为准，不作为已部署或已验证事实。
 
 本文是候选部署模板，不是可直接执行的生产配置。MySQL 配置和部署关系按已确认的 GTID、分片及同步规则整理；Canal Adapter 的具体属性名、ES 插件注册名和表映射执行方式，必须在锁定发行包后进一步核对。
 
@@ -267,11 +272,11 @@ canal_query：查询业务表
 - MySQL 客户端；
 - Linux 服务管理工具。
 
-Canal Server 和 Adapter 应使用同一发行版本。Canal 1.1.8 可以作为候选版本：
+Canal Server 和 Adapter 应使用同一发行版本。当前项目版本确定为 Canal 1.1.7：
 
 ```text
-canal.deployer-1.1.8.tar.gz
-canal.adapter-1.1.8.tar.gz
+canal.deployer-1.1.7.tar.gz
+canal.adapter-1.1.7.tar.gz
 ```
 
 正式部署前必须锁定：
@@ -385,11 +390,11 @@ canal.instance.filter.regex=consume_db1\\.consume_record_(0[0-9]|1[0-5])
 
 **首次启动与恢复分开**
 
-`canal.instance.master.gtid` 使用导入前保存的完整集合，不能取部署时最新值。已有持久化位点可能影响启动位置，必须在锁定发行包中核对优先级与恢复流程，不能删除位点文件来强行重置。候选属性名已对照 [Canal 1.1.8 instance.properties](https://github.com/alibaba/canal/blob/canal-1.1.8/deployer/src/main/resources/example/instance.properties)；项目版本仍待锁定。
+`canal.instance.master.gtid` 使用导入前保存的完整集合，不能取部署时最新值。已有持久化位点可能影响启动位置，必须在锁定发行包中核对优先级与恢复流程，不能删除位点文件来强行重置。候选属性名已对照 [Canal 1.1.7 instance.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/example/instance.properties)；项目版本边界已确定为 1.1.7；发行包和运行加载结果仍待验证。
 
 ## 8. Canal Adapter 配置
 
-以下结构已对照 [Canal 1.1.8 application.yml](https://github.com/alibaba/canal/blob/canal-1.1.8/client-adapter/launcher/src/main/resources/application.yml) 的 TCP 连接字段；项目尚未锁定并运行验证发行包，仍需核对：
+以下结构已对照 [Canal 1.1.7 application.yml](https://github.com/alibaba/canal/blob/canal-1.1.7/client-adapter/launcher/src/main/resources/application.yml) 的 TCP 连接字段；项目尚未运行验证发行包，仍需核对：
 
 - 候选版本示例的 `canal.tcp.server.host` 使用 `host:port`，确认目标包保持相同语义；
 - 候选示例存在 `canal.tcp.username` 和 `canal.tcp.password`，确认实际认证配置；
@@ -413,7 +418,7 @@ canal.conf:
 
   consumerProperties:
     # 仓库草案使用 host:port 形式。
-    # 此形式已核对候选 1.1.8 示例，实际包仍需验证。
+    # 此形式已核对候选 1.1.7 示例，实际包仍需验证。
     canal.tcp.server.host: 192.168.20.11:11111
     canal.tcp.batch.size: 500
     canal.tcp.username:
@@ -601,3 +606,4 @@ Canal 位点和表结构元数据
 6. 验证生产环境所需的具体索引定位逻辑。
 
 以上 Canal Adapter 相关配置尚未在实际发行包、Linux、MySQL 8.0.33 和 Elasticsearch 7.17.15 环境中运行验证，不能描述为已经验证通过的最终生产配置。
+

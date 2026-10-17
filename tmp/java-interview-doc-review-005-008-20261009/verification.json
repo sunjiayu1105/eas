@@ -1,0 +1,69 @@
+{
+  "changed": [
+    "005_Canal 同步 MySQL binlog 到 ES（总链路）.md",
+    "006_Canal 同步 MySQL binlog 到 ES（MySQL 处理逻辑）.md",
+    "007_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md",
+    "008_Canal 同步 MySQL binlog 到 ES（自定义 ES 消费服务处理逻辑）.md",
+    "009_ES 文档如何写入与检索.md",
+    "010_批次失败与同步恢复.md",
+    "030_待补充事项（不作为已完成能力口述）.md",
+    "999_Canal Server、Destination 与 MySQL 实例的对应关系.md",
+    "README.md"
+  ],
+  "repaired": [
+    {
+      "document": "999_Canal Server、Destination 与 MySQL 实例的对应关系.md",
+      "target": "007_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md",
+      "from": 254,
+      "to": 257
+    }
+  ],
+  "oralLengths": {
+    "005_Canal 同步 MySQL binlog 到 ES（总链路）.md": {
+      "before": 703,
+      "after": 711,
+      "headings": [
+        "整体概括",
+        "捕获变更",
+        "交给消息队列",
+        "消费并写入 ES"
+      ]
+    },
+    "006_Canal 同步 MySQL binlog 到 ES（MySQL 处理逻辑）.md": {
+      "before": 1056,
+      "after": 802,
+      "headings": [
+        "整体概括",
+        "变更完整记入 binlog（二进制日志）",
+        "首次同步起点覆盖历史导入",
+        "采集故障后仍有 binlog 可追赶"
+      ]
+    },
+    "007_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md": {
+      "before": 1443,
+      "after": 1037,
+      "headings": [
+        "整体概括",
+        "读取日志",
+        "解析变更",
+        "发布消息",
+        "维护进度",
+        "单机重启与恢复"
+      ]
+    },
+    "008_Canal 同步 MySQL binlog 到 ES（自定义 ES 消费服务处理逻辑）.md": {
+      "before": 967,
+      "after": 913,
+      "headings": [
+        "整体概括",
+        "解析消息与检查顺序",
+        "定位物理索引",
+        "执行增删改",
+        "确认 MQ 消费"
+      ]
+    }
+  },
+  "jsonBlocks": 2,
+  "checkedReferences": 26,
+  "validationScope": "Document structure, event contract and navigation only. No application compilation, service connection, synchronization or fault injection."
+}

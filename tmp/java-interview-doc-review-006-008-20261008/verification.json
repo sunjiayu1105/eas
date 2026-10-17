@@ -1,0 +1,28 @@
+{
+  "changed": [
+    "005_Canal 同步 MySQL binlog 到 ES（总链路）.md",
+    "006_Canal 同步 MySQL binlog 到 ES（MySQL 处理逻辑）.md",
+    "007_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md",
+    "008_Canal 同步 MySQL binlog 到 ES（自定义 ES 消费服务处理逻辑）.md",
+    "010_批次失败与同步恢复.md",
+    "030_待补充事项（不作为已完成能力口述）.md",
+    "999_Canal Server、Destination 与 MySQL 实例的对应关系.md",
+    "999_掘金文章方案整理与冲突分析.md",
+    "README.md"
+  ],
+  "oralLengths": {
+    "006_Canal 同步 MySQL binlog 到 ES（MySQL 处理逻辑）.md": 798,
+    "007_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）.md": 909,
+    "008_Canal 同步 MySQL binlog 到 ES（自定义 ES 消费服务处理逻辑）.md": 916
+  },
+  "jsonCount": 2,
+  "referenceCount": 12,
+  "sourceHashes": {
+    "CanalMessageSerializerUtil.java": "4ac0219350418979400a64ed30027c0329cc7ec668cc04af9708f204c8284d26",
+    "CanalMQStarter.java": "a65e19307c49b8d888c74d74bebae9c6cfd47651cd71b7d9aa57f1ebb4e19d47",
+    "CanalRocketMQProducer.java": "402825c6bb0067f757c23558370741bb685f8d14e06262ef39cde7f14beb9183",
+    "FlatMessage.java": "382093785977f46f45248be4896dcf3e768d57c0a6df1cd26d9094e949101699",
+    "MQMessageUtils.java": "a4f193886b9ec8617179af655e9f777d21a7aceb0af57121151b91c11cc1e4c0"
+  },
+  "runtimeValidation": "Not performed; document structure and version source review only."
+}
