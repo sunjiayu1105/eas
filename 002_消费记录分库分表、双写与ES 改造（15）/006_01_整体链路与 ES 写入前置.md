@@ -30,7 +30,7 @@
 
 ### 参考来源
 
-总览文档：[006_Canal 同步 MySQL binlog 到 ES（待确认问题）.md](006_Canal 同步 MySQL binlog 到 ES（待确认问题）.md)
+总览文档：[006_13_Canal 同步 MySQL binlog 到 ES（待确认问题）.md](006_13_Canal 同步 MySQL binlog 到 ES（待确认问题）.md)
 
 
 
