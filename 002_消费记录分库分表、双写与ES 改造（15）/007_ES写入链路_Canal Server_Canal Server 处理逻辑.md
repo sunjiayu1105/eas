@@ -1,10 +1,12 @@
-# 008_Canal 同步 MySQL binlog 到 ES（Canal Server 处理逻辑）
+# ES写入链路_Canal Server_Canal Server 处理逻辑
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 当前版本基线：Java 8、Spring Boot 2.7.18、`rocketmq-spring-boot-starter` 2.3.0、`org.apache.rocketmq:rocketmq-client` 5.2.0、Canal Server 1.1.7、Canal Adapter 1.1.7（ES 7 Adapter）、MySQL 8.0.33 和 Elasticsearch 服务端 7.17.15。5.2.0 是 MQ 客户端版本，Broker 版本未确认。
 
 ## 已确认规则
+
+- 本次按用户确认重命名 Canal Server 处理逻辑和自定义消费服务处理逻辑文档，同步名称标识及关联引用；不调整技术结论。
 
 - 仅新分库分表的消费表增加业务 `version`，旧表不增加；历史导入初始化为 `1`，后续更新在同一条 SQL 中修改业务字段并执行 `version = version + 1`。导入重跑不重置已有版本，MQ 重试沿用消息中的数据与版本；新旧表数据校验排除 `version`，其他口径不变，版本行为单独验证。以上为已确认、待实现验证的设计决策。
 - 本文说明 Canal Server 读取、解析、发布 RocketMQ 消息和维护消费进度的职责；RocketMQ 消费和 ES 写入见 009。当前采用 `canal.serverMode=rocketMQ`，不再部署独立 Canal-to-MQ 投递组件。
@@ -192,7 +194,7 @@ Canal 使用 Entry 表示解析事件：Header 保存库表、事件类型和日
 }
 ~~~
 
-INSERT/UPDATE/DELETE 的业务版本均按新表字段 `version` 规则传递，重放时保持不变。业务版本按同一记录比较，不要求跨记录或跨库全局递增；源库迁移和数据重建须保留版本连续性，不能重置后沿用旧文档身份。binlog 坐标用于日志追踪或可选事件身份，batchId 只用于批次追踪，GTID 标识事务。Delete API 的版本传递、删除状态、`index.gc_deletes=3h` 和每小时自动校验由下游实现并验证。
+INSERT/UPDATE/DELETE 的业务版本均按新表字段 `version` 规则传递，重放时保持不变。业务版本按同一记录比较，不要求跨记录或跨库全局递增；源库迁移和数据重建须保留版本连续性，不能重置后沿用旧文档身份。binlog 坐标用于日志追踪或可选事件身份，batchId 只用于批次追踪，GTID 标识事务。Delete API 的版本传递、删除状态、`index.gc_deletes=3h` 和每半小时自动校验与兜底补偿由下游实现并验证。
 
 业务版本用于判断同一记录的新旧。INSERT/UPDATE 需要去重时，可用“业务主键 + 业务版本”；若使用源坐标事件 ID，则另行补齐来源实例、文件、事件位置与原始行序号。DELETE 的事件身份须与最终删除版本规则一起确定，不能把删除前版本与上一条更新混为同一事件。orderKey 是内部状态键，consumeId 作为 ES `_id`，队列由 partitionHash 的真实源字段决定；版本维护、冲突与删除保护见 009。
 
@@ -266,4 +268,10 @@ RocketMQ 生产成功、Broker 持久化、Canal 位点持久化、MQ 消费确�
 
 以上为已有官方版本源码的静态核对及待核验模板入口，未验证实际发行包、依赖树、MySQL 8.0.33 认证、本地位点落盘或单机重启恢复。
 
+
+
+
+## 问题列表
+
+- 单机双destination、本地位点、RocketMQ发送结果和断档恢复仍未实际演练。
 
