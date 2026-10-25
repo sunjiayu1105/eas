@@ -17,7 +17,9 @@ Canal Server 使用复制账号读取 MySQL binlog，先按库表过滤范围，
 
 ### 3.1 读取与解析
 
-Server 使用复制账号连接 MySQL，读取已提交的 binlog；库表过滤规则限定同步范围。解析结果以 Entry 表示，Header 保存库表、事件类型和日志坐标等头部信息，RowChange 表示行变更内容，RowData 保存各行的变更前后列值。binlog 还包含事务标记、DDL（数据定义语句，如修改表结构）等事件，不能把所有事件都当作普通行增删改。
+Server 使用复制账号连接 MySQL，读取 binlog；库表过滤规则限定同步范围。解析结果以 Entry 表示，Header 保存库表、事件类型和日志坐标等头部信息，RowChange 表示行变更内容，RowData 保存各行的变更前后列值。binlog 还包含事务标记、DDL（数据定义语句，如修改表结构）等事件，不能把所有事件都当作普通行增删改。
+
+依据：[MysqlEventParser](https://github.com/alibaba/canal/blob/canal-1.1.7/parse/src/main/java/com/alibaba/otter/canal/parse/inbound/mysql/MysqlEventParser.java)、[CanalEntry](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/CanalEntry.java)。本次只完成 1.1.7 源码静态核对，不表示项目运行行为已经验证。
 
 Canal 自带的消息发送功能从内部 Server 获取待确认批次，随后按消息格式和分区规则封装并发布。日志读取、事件解析与消息发布是不同阶段；发送确认及重试见 [07 RocketMQ消息发布与事务边界](<./007_ES写入链路_Canal Server_07_RocketMQ消息发布与事务边界.md>)，持久化进度及恢复见 [08 进度确认与单机恢复](<./007_ES写入链路_Canal Server_08_进度确认与单机恢复.md>)。
 
@@ -49,4 +51,4 @@ Canal 自带的消息发送功能从内部 Server 获取待确认批次，随后
 
 ## 6 复核记录
 
-本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；未执行 Canal、MySQL、RocketMQ 或 Elasticsearch 联调。
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md) 一轮，并按 `java-interview-doc-review` 和 `self-check` 完成最终复核；本次未执行 Canal、MySQL、RocketMQ 或 Elasticsearch 联调。
