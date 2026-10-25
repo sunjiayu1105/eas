@@ -4,7 +4,7 @@
 
 ## 1 已确认规则
 
-本专题按公共配置、destination 配置、事件解析与消息格式拆分；详细方案和参考文章对比分别维护在对应子文档。既有项目规则见 [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>)。
+本专题按公共配置、destination 配置、事件解析与消息格式拆分；详细方案和参考文章对比分别维护在对应子文档。既有项目规则见 Canal Server 原总览（原文档已删除，依据待补充）。
 
 ## 2 面试口述精炼版本
 
@@ -12,7 +12,8 @@ Canal Server 通过公共配置加载同步通道，各通道独立连接源库�
 
 ## 3 专题导航
 
-- [部署拓扑与公共配置](<./007_ES写入链路_Canal Server_03_部署拓扑与公共配置.md>)
+- [部署拓扑](<./007_ES写入链路_Canal Server_01_部署拓扑.md>)
+- [公共配置](<./007_ES写入链路_Canal Server_02_公共配置.md>)
 - [destination 过滤与分区路由](<./007_ES写入链路_Canal Server_04_destination过滤与分区路由.md>)
 - [Binlog 事件解析与消息格式](<./007_ES写入链路_Canal Server_05_Binlog事件解析与消息格式.md>)
 

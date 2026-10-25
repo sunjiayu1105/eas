@@ -4,7 +4,7 @@
 
 ## 适用规则
 
-本页沿用 [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>) 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。
+本页沿用 Canal Server 原总览（原文档已删除，依据待补充） 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。
 
 ## 面试口述精炼版本
 
@@ -110,6 +110,5 @@ Canal 一次拉取并等待确认的一组事件属于内部批次，`batchId` �
 
 ## 关联文档
 
-- [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>)
 - [进度确认与单机恢复](<./007_ES写入链路_Canal Server_08_进度确认与单机恢复.md>)
 - [RocketMQ 消费模型](<./008_ES写入链路_RocketMQ_RocketMQ 消费模型.md>)
