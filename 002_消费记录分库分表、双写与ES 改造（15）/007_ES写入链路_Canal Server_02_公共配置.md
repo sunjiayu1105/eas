@@ -14,6 +14,8 @@
 
 ### 3.2 公共配置示意
 
+以下配置写在 Canal Server 的全局配置文件 `conf/canal.properties` 中，路径相对于 Canal Server 解压目录。该文件统一配置 Server 的运行模式、要加载的 destination（数据同步通道）、实例使用的位点模板和 RocketMQ 连接参数；每个通道专属的源库连接、表过滤等配置则写在 `conf/<destination>/instance.properties` 中。
+
 这组公共配置先决定 Canal Server 如何运行，再指定它加载哪些同步通道和如何保存读取进度。`canal.serverMode` 选择消息发布模式，`canal.destinations` 指定同一进程承载的同步通道，`canal.instance.global.spring.xml` 指定通道实例使用的位点模板，RocketMQ 参数用于连接消息服务。消息格式只约束生产端与消费端的解析契约，不能由配置存在推断消息字段和发送结果已经验证。
 
 以下地址、账号、密码和端口都是占位值，不能直接用于生产：
