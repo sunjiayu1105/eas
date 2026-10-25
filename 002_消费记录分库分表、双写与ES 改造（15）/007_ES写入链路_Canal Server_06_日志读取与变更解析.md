@@ -15,7 +15,7 @@ Canal Server 通过公共配置加载同步通道，各通道独立连接源库�
 - [部署拓扑](<./007_ES写入链路_Canal Server_01_部署拓扑.md>)
 - [公共配置](<./007_ES写入链路_Canal Server_02_公共配置.md>)
 - [destination 过滤与分区路由](<./007_ES写入链路_Canal Server_04_destination过滤与分区路由.md>)
-- [Binlog 事件解析与消息格式](<./007_ES写入链路_Canal Server_05_Binlog事件解析与消息格式.md>)
+- [Binlog 读取与 Entry 解析](<./007_ES写入链路_Canal Server_05_1_Binlog读取与Entry解析.md>)、[消息格式与字段边界](<./007_ES写入链路_Canal Server_05_2_消息格式与字段边界.md>)、[事务边界与特殊事件](<./007_ES写入链路_Canal Server_05_3_事务边界与特殊事件.md>)
 
 ## 4 验证边界
 

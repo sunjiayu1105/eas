@@ -28,7 +28,7 @@ canal.destinations=db0,db1
 canal.auto.reset.latest.pos.mode=false
 canal.instance.global.spring.xml=classpath:spring/file-instance.xml
 
-# 消息格式配置见 05_Binlog事件解析与消息格式.md。
+# 消息格式配置见 007_ES写入链路_Canal Server_05_2_消息格式与字段边界.md。
 
 # 以下键名已按 1.1.7 源码核对，实际加载仍待验证
 rocketmq.namesrv.addr=<nameserver-address>
