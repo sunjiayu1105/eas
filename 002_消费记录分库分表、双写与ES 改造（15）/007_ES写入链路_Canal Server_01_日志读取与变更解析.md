@@ -111,6 +111,33 @@ Canal 使用 Entry 表示解析事件：Header 保存库表、事件类型和日
 
 消息数、Entry 数和 ES 文档数各不相同。事务标记只有实际保留时才能用于上下文，不能把分区后的消息当作完整源事务。DDL、TRUNCATE、主键变更及未知事件须明确暂停或处置；涉及多个分区的 DDL 还须协调隔离，不能只处理队列 0 就让其他队列继续使用旧结构。
 
+## 参考文章与项目实现的区别
+
+对照文章 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案.md>) 时，文章中的命令、版本、示例数据和演示结果只代表文章原始实验环境，不能直接视为当前项目已经采用或验证的实现。
+
+### 1. 部署拓扑不同
+
+- 文章围绕一个 `order_db.orders` 示例展开，并配置 RocketMQ 4.9.4 的 NameServer、两个 Broker 和 Dashboard；当前项目是 1 个 Canal Server 进程承载 db0、db1 两个 destination，不配置 ZooKeeper 高可用，RocketMQ Broker 版本也尚未确认。
+- 文章把 Canal、RocketMQ 和 ES 8 冷热节点部署在实验环境中，包含可运行的启动命令和效果演示；当前文档只记录项目设计和配置边界，未把部署、联调或故障恢复写成已完成事实。
+
+### 2. MySQL 与 Canal 版本及起点不同
+
+- 文章使用 MySQL 8.0.29、Canal 1.1.6，并在单个实例配置文件中填写 binlog 文件名和 position；当前项目按 MySQL 8.0.33、Canal Server 1.1.7 说明，两个 destination 分别维护源库、过滤规则、导入前 GTID 基线和本地进度。
+- 文章示例通过 `canal.instance.master.journal.name` 和 `canal.instance.master.position` 从固定日志位置启动；当前项目首次同步使用导入前 GTID 基线，已有可核对位点不能被基线或最新 GTID 覆盖，具体落盘和恢复行为仍待实际发行包验证。
+- 文章的数据库用户、密码、库表和 `order_db.orders` 示例不能直接用于当前项目；当前项目的复制账号、真实源列、权限和 binlog 连续性仍需按两个源库分别核对。
+
+### 3. 过滤、分区与消息路由不同
+
+- 文章监听 `order_db\.orders.*`，以 `order_no` 作为 `partitionHash`，并示例使用 8 个分区和动态获取队列数；当前项目按 `eas\.consume_record_(0[1-9]|1[0-6])` 的 16 张分表配置候选范围，每个 destination 使用自己的 topic、源字段和正数分区数，是否稳定路由仍待验证。
+- 文章的分区示例用于说明同一订单进入同一队列；当前项目不能直接把 ES 字段名或 `consumeId` 当作 `partitionHash` 源列，必须以真实 MySQL DDL 核对 INSERT、UPDATE、DELETE 的取值，并分别核对两个 destination 的队列映射。
+- 文章示例把配置和运行结果放在同一实验链路中；当前项目采用 Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件，MQ 工作线程的订阅、批次确认和重试边界仍按 Canal 1.1.7 发行包核验。
+
+### 4. Binlog、消息格式与 ES 版本不同
+
+- 文章示例重点展示数据从 Canal 进入 RocketMQ、再写入 ES 8，并使用 ES 8.4.2 客户端和冷热节点 ILM；当前项目的 ES 服务端是 7.17.15，ES 写入、索引定位和 ILM 规则由其他文档负责，本页只说明 Canal 侧读取和解析，不能套用文章的 ES 8 API、Mapping 或冷热节点参数。
+- 文章示例没有提供当前项目所需的 16 张分表、业务 `version`、GTID 基线和来源版本边界；当前项目需要区分 INSERT/UPDATE 后值、DELETE 前值、事务与 DDL 事件，并核对 FlatMessage JSON 或二进制 Entry 实际保留的字段。
+- 文章中的“消息已发送并展示效果”属于文章实验结果；当前项目尚未用实际发行包生成消息样例，不能据此确认完整源坐标、原始行序号、事务边界或发送结果已经可靠传递。
+
 ## 待确认事项
 
 - 首次 GTID 基线、过滤正则、复制身份及实际行镜像是否与配置一致，仍需在两个源库分别验证。
