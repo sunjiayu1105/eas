@@ -105,7 +105,7 @@ Canal 一次拉取并等待确认的一组事件属于内部批次，`batchId` �
 
 ## 4 待确认事项
 
-Binlog 到 RocketMQ 的转换、分区和发送实现见 [05_4 Binlog发送到RocketMQ核心实现](<./019_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)；本页继续说明发送后的事务、确认与恢复边界。
+Binlog 到 RocketMQ 的转换、分区和发送实现见 [Binlog发送到RocketMQ核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)；本页继续说明发送后的事务、确认与恢复边界。
 
 - topic、分区数、队列映射、消息格式和 `partitionHash` 源列是否稳定，仍需结合实际配置验证。
 - 事务开始/提交事件是否保留、部分发送失败后的恢复顺序和非 `SEND_OK` 处理仍需运行验证。

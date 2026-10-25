@@ -1,10 +1,10 @@
-# 016_ES改造_Canal Server_Binlog读取与Entry解析
+# 017_ES改造_Canal Server_Binlog读取与Entry解析
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 读取 binlog、过滤范围和 Entry 解析；消息格式见 [05_2 消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)，事务与特殊事件见 [05_3 事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明 Canal Server 读取 binlog、过滤范围和 Entry 解析；消息格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)，事务与特殊事件见 [事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 项目设计以 `db0`、`db1` 两个 destination 及各自的分表为范围，未表示已经部署或完成运行验证。
 
 ## 2 面试口述精炼版本

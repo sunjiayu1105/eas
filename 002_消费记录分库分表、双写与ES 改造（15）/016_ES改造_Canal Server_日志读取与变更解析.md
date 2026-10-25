@@ -1,4 +1,4 @@
-# 020_ES改造_Canal Server_日志读取与变更解析
+# 016_ES改造_Canal Server_日志读取与变更解析
 
 以下内容按照当前项目 AGENTS.md 项目级规则中规定的技术栈版本为准。
 
@@ -15,8 +15,8 @@ Canal Server 通过公共配置加载同步通道，各通道独立连接源库�
 - [部署拓扑](<./013_ES改造_Canal Server_部署拓扑.md>)
 - [公共配置](<./014_ES改造_Canal Server_公共配置.md>)
 - [destination 过滤与分区路由](<./015_ES改造_Canal Server_destination过滤与分区路由.md>)
-- [Binlog 读取与 Entry 解析](<./016_ES改造_Canal Server_Binlog读取与Entry解析.md>)、[消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)、[事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)
-- [Binlog 发送到 RocketMQ 核心实现](<./019_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
+- [Binlog 读取与 Entry 解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)、[消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)、[事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)
+- [Binlog 发送到 RocketMQ 核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
 
 ## 4 验证边界
 

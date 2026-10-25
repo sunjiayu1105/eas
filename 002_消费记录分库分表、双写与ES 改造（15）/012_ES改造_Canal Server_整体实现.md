@@ -22,25 +22,25 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 
 - [destination 过滤与分区路由](<./015_ES改造_Canal Server_destination过滤与分区路由.md>)
 
-### 4. Binlog 读取与 Entry 解析
+### 4. 日志读取与变更解析
 
-- [Binlog 读取与 Entry 解析](<./016_ES改造_Canal Server_Binlog读取与Entry解析.md>)
+- [日志读取与变更解析](<./016_ES改造_Canal Server_日志读取与变更解析.md>)
 
-### 5. 消息格式与字段边界
+### 5. Binlog 读取与 Entry 解析
 
-- [消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)
+- [Binlog 读取与 Entry 解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)
 
-### 6. 事务边界与特殊事件
+### 6. 消息格式与字段边界
 
-- [事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)
+- [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)
 
-### 7. Binlog 发送到 RocketMQ 核心实现
+### 7. 事务边界与特殊事件
 
-- [Binlog 发送到 RocketMQ 核心实现](<./019_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
+- [事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)
 
-### 8. 日志读取与变更解析
+### 8. Binlog 发送到 RocketMQ 核心实现
 
-- [日志读取与变更解析](<./020_ES改造_Canal Server_日志读取与变更解析.md>)
+- [Binlog 发送到 RocketMQ 核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
 
 ### 9. RocketMQ 消息发布与事务边界
 
@@ -49,7 +49,6 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 ### 10. 进度确认与单机恢复
 
 - [进度确认与单机恢复](<./022_ES改造_Canal Server_进度确认与单机恢复.md>)
-
 ## 3 拆分边界与验证说明
 
 拆分只调整文档组织，不改变已确认的 Canal Server 1.1.7、MySQL 8.0.33、RocketMQ 和单机部署设计。每个文档的运行效果、发行包行为、位点落盘、消息可靠性和故障恢复仍以原待验证事项为准；本次未执行 Canal、MySQL、RocketMQ 或 Elasticsearch 联调。
