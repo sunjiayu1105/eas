@@ -42,37 +42,39 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ## 4 参考文章与项目设计的对比
 
-### 4.1 共同点
+### 4.1 投递组件与部署范围
 
-**发布组件：**
+**相同点：**
 
-**参考文章：** Canal Server 通过内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ。
+参考文章和当前项目都由 Canal Server 内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ，都不另设独立 TCP 投递组件。
 
-**当前项目：** 同样由 Canal Server 内置 RocketMQ 生产端直接发布，不另设独立 TCP 投递组件。
-
-**处理链路：**
-
-**参考文章：** 先由 Canal Server 读取并转换 MySQL Binlog，再把消息发送到 RocketMQ，供下游消费。
-
-**当前项目：** 同样沿用 Canal Server → RocketMQ → 下游消费服务的处理链路，后续由自定义消费服务写入 ES。
-
-### 4.2 差异
-
-**实验环境与部署范围：**
+**不同点：**
 
 **参考文章：** 展示了 NameServer、Broker 和 Dashboard 等 RocketMQ 实验环境组件，并给出消息进入 RocketMQ 的效果。
 
 **当前项目：** 只确认使用 Canal Server 内置 RocketMQ 生产端；Broker 版本、部署实例数量和管理组件的实际部署情况仍待确认。
 
-**消息转换：**
+### 4.2 消息处理链路与格式
+
+**相同点：**
+
+参考文章和当前项目都经过 Canal Server 读取并转换 MySQL Binlog，再将消息发送到 RocketMQ，供下游消费。
+
+**不同点：**
 
 **参考文章：** 消费端示例直接把消息解析为 JSON，并按订单示例处理 `data` 和 `type`。
 
-**当前项目：** 生产端可按 `flatMessage` 选择 FlatMessage JSON 或 Canal 二进制 Entry；消费端必须与实际配置和封装格式匹配，不能把文章 JSON 示例当作项目实际消息契约。
+**当前项目：** 生产端可按 `flatMessage` 选择 FlatMessage JSON 或 Canal 二进制 Entry；消费端必须与实际配置和封装格式匹配，不能把文章 JSON 示例当作项目实际消息契约，后续由自定义消费服务写入 ES。
 
-**批次确认：**
+### 4.3 批次确认与结果边界
 
-**参考文章：** 展示发送和写入效果，但没有证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
+**相同点：**
+
+参考文章和当前项目都不能仅凭消息进入 RocketMQ 或展示写入效果，证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
+
+**不同点：**
+
+**参考文章：** 主要展示发送和写入效果，没有展开 Canal 批次提交、异常回滚及部分发送成功后的处理边界。
 
 **当前项目：** 发送任务完成后才触发 Canal 批次提交或回滚；MQ 发送、Broker 持久化、下游消费和 ES 写入分别表示不同状态，部分成功和结果不明时可能重复投递。
 
@@ -87,3 +89,5 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 ## 6 复核记录
 
 本文依据 Canal 1.1.7 的 [CanalMQStarter](https://github.com/alibaba/canal/blob/canal-1.1.7/server/src/main/java/com/alibaba/otter/canal/server/CanalMQStarter.java)、[CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java) 静态核对；未执行 Canal、RocketMQ 或 ES 联调。
+
+本轮已执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，并按 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md) 完成结构与表达复核。
