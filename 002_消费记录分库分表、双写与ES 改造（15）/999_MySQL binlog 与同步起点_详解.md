@@ -35,7 +35,7 @@ A:
   - [UPDATE 行事件记录修改前后镜像](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/999_MySQL binlog 与同步起点_详解.md:235>)
   - [DELETE 行事件记录删除前镜像](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/999_MySQL binlog 与同步起点_详解.md:257>)
 
-历史导入与后续新表变更要通过 Canal 同步到 ES，MySQL 必须留下可读的行事件；各新库的导入前基线只负责确定对应 Canal 通道的首次读取起点，通道的可靠进度则负责重启后的连续接续。Canal Server 如何解析这些事件见 [007_ES写入链路_Canal Server_Canal Server 处理逻辑.md](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/007_ES写入链路_Canal Server_Canal Server 处理逻辑.md:1>)。
+历史导入与后续新表变更要通过 Canal 同步到 ES，MySQL 必须留下可读的行事件；各新库的导入前基线只负责确定对应 Canal 通道的首次读取起点，通道的可靠进度则负责重启后的连续接续。Canal Server 如何解析这些事件见 [007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md:1>)。
 
 ### 面试口述精炼版本
 
@@ -115,7 +115,7 @@ binlog_expire_logs_seconds=2592000
 
 2 个新库须分别核对：ES 同步通道最长停读、故障修复、追赶时间加安全余量应小于 30 天；磁盘空间应覆盖实测 ROW/FULL 日志增量和历史导入峰值。持续监控同步进度及最早可读日志，不能指望 MySQL 因下游滞后而自动延长保留期。
 
-上述配置只描述 MySQL 产生日志的前置条件，不包含 Canal Server 的 `canal.properties`、`instance.properties` 或 Java 消费端代码；Server 配置和消息解析职责见 [007_ES写入链路_Canal Server_Canal Server 处理逻辑.md](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/007_ES写入链路_Canal Server_Canal Server 处理逻辑.md:1>)，ES 写入端见 [009_ES写入链路_自定义消费服务_自定义 ES 消费服务处理逻辑](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/009_ES写入链路_自定义消费服务_自定义 ES 消费服务处理逻辑.md:1>)。配置文件路径、`server-id`、日志保留秒数和重启结果均待实际环境核实，不能把模板视为已部署配置。
+上述配置只描述 MySQL 产生日志的前置条件，不包含 Canal Server 的 `canal.properties`、`instance.properties` 或 Java 消费端代码；Server 配置和消息解析职责见 [007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md:1>)，ES 写入端见 [009_ES写入链路_自定义消费服务_自定义 ES 消费服务处理逻辑](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/009_ES写入链路_自定义消费服务_自定义 ES 消费服务处理逻辑.md:1>)。配置文件路径、`server-id`、日志保留秒数和重启结果均待实际环境核实，不能把模板视为已部署配置。
 
 #### 配置核对 SQL
 

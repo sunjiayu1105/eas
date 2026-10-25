@@ -1,10 +1,10 @@
-# 007_ES写入链路_Canal Server_01_2_destination过滤与分区路由
+# 007_ES写入链路_Canal Server_04_destination过滤与分区路由
 
 以下内容按照当前项目 AGENTS.md 项目级规则中规定的技术栈版本为准。
 
 ## 1 适用规则
 
-沿用 [Canal Server 总览](<./007_ES写入链路_Canal Server_Canal Server 处理逻辑.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
+沿用 [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
 
 ## 2 面试口述精炼版本
 

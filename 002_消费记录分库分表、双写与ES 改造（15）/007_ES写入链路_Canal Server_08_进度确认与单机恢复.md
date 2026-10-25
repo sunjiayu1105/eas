@@ -1,8 +1,8 @@
-# 007_ES写入链路_Canal Server_03_进度确认与单机恢复
+# 007_ES写入链路_Canal Server_08_进度确认与单机恢复
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。本文是 Canal Server 写入链路的拆分总览；三个独立文档分别说明日志读取与解析、RocketMQ 发布与事务边界、进度确认与单机恢复。设计、实现和验证状态继续按原文边界说明。
 
-## 适用规则`r`n`r`n本页沿用 [Canal Server 总览](<./007_ES写入链路_Canal Server_Canal Server 处理逻辑.md>) 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。`r`n`r`n
+## 适用规则`r`n`r`n本页沿用 [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>) 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。`r`n`r`n
 ## 面试口述精炼版本
 
 ### 进度与恢复
@@ -86,6 +86,6 @@
 
 ## 关联文档
 
-- [Canal Server 总览](<./007_ES写入链路_Canal Server_Canal Server 处理逻辑.md>)
-- [RocketMQ 消息发布与事务边界](<./007_ES写入链路_Canal Server_02_RocketMQ消息发布与事务边界.md>)
+- [Canal Server 总览](<./007_ES写入链路_Canal Server_09_Canal Server 处理逻辑.md>)
+- [RocketMQ 消息发布与事务边界](<./007_ES写入链路_Canal Server_07_RocketMQ消息发布与事务边界.md>)
 - [增量校验流程与差异处理](<./010_ES写入链路_ES_12_3_增量校验流程与差异处理.md>)
