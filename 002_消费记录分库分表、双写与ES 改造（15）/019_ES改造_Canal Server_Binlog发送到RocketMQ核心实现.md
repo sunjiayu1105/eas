@@ -1,10 +1,10 @@
-# 012_07_ES改造_Canal Server_Binlog发送到RocketMQ核心实现
+# 019_ES改造_Canal Server_Binlog发送到RocketMQ核心实现
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；事务边界、提交与回滚影响见 [07 RocketMQ消息发布与事务边界](<./012_09_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)。
+- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；事务边界、提交与回滚影响见 [07 RocketMQ消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)。
 - 当前项目采用 Canal Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件；本文描述的是 Canal 1.1.7 源码路径，未表示实际发行包已部署或验证。
 
 ## 2 面试口述精炼版本
@@ -23,7 +23,7 @@ CanalMQStarter 为每个 destination 创建内部生产端，并使用内部 cli
 
 CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
-- `true`：调用消息转换逻辑生成 FlatMessage JSON，再序列化为 RocketMQ 消息体；`data`、`old`、事件类型和来源字段的边界见 [05_2 消息格式与字段边界](<./012_05_ES改造_Canal Server_消息格式与字段边界.md>)。
+- `true`：调用消息转换逻辑生成 FlatMessage JSON，再序列化为 RocketMQ 消息体；`data`、`old`、事件类型和来源字段的边界见 [05_2 消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)。
 - `false`：保留 Canal Entry，按 Canal Packet/Messages 二进制格式封装，再交给 RocketMQ Producer 发送。
 
 格式开关位于 Canal Server 解压目录下的 `conf/canal.properties`。模板默认值不等于当前部署值，实际加载结果和消费端解码方式仍需核对。

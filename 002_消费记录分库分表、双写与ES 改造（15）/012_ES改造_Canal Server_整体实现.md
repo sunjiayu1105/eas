@@ -12,43 +12,43 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 
 ### 1. 部署拓扑
 
-- [部署拓扑](<./012_01_ES改造_Canal Server_部署拓扑.md>)
+- [部署拓扑](<./013_ES改造_Canal Server_部署拓扑.md>)
 
 ### 2. 公共配置
 
-- [公共配置](<./012_02_ES改造_Canal Server_公共配置.md>)
+- [公共配置](<./014_ES改造_Canal Server_公共配置.md>)
 
 ### 3. destination 过滤与分区路由
 
-- [destination 过滤与分区路由](<./012_03_ES改造_Canal Server_destination过滤与分区路由.md>)
+- [destination 过滤与分区路由](<./015_ES改造_Canal Server_destination过滤与分区路由.md>)
 
 ### 4. Binlog 读取与 Entry 解析
 
-- [Binlog 读取与 Entry 解析](<./012_04_ES改造_Canal Server_Binlog读取与Entry解析.md>)
+- [Binlog 读取与 Entry 解析](<./016_ES改造_Canal Server_Binlog读取与Entry解析.md>)
 
 ### 5. 消息格式与字段边界
 
-- [消息格式与字段边界](<./012_05_ES改造_Canal Server_消息格式与字段边界.md>)
+- [消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)
 
 ### 6. 事务边界与特殊事件
 
-- [事务边界与特殊事件](<./012_06_ES改造_Canal Server_事务边界与特殊事件.md>)
+- [事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)
 
 ### 7. Binlog 发送到 RocketMQ 核心实现
 
-- [Binlog 发送到 RocketMQ 核心实现](<./012_07_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
+- [Binlog 发送到 RocketMQ 核心实现](<./019_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
 
 ### 8. 日志读取与变更解析
 
-- [日志读取与变更解析](<./012_08_ES改造_Canal Server_日志读取与变更解析.md>)
+- [日志读取与变更解析](<./020_ES改造_Canal Server_日志读取与变更解析.md>)
 
 ### 9. RocketMQ 消息发布与事务边界
 
-- [RocketMQ 消息发布与事务边界](<./012_09_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)
+- [RocketMQ 消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)
 
 ### 10. 进度确认与单机恢复
 
-- [进度确认与单机恢复](<./012_10_ES改造_Canal Server_进度确认与单机恢复.md>)
+- [进度确认与单机恢复](<./022_ES改造_Canal Server_进度确认与单机恢复.md>)
 
 ## 3 拆分边界与验证说明
 

@@ -1,10 +1,10 @@
-# 012_04_ES改造_Canal Server_Binlog读取与Entry解析
+# 016_ES改造_Canal Server_Binlog读取与Entry解析
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 读取 binlog、过滤范围和 Entry 解析；消息格式见 [05_2 消息格式与字段边界](<./012_05_ES改造_Canal Server_消息格式与字段边界.md>)，事务与特殊事件见 [05_3 事务边界与特殊事件](<./012_06_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明 Canal Server 读取 binlog、过滤范围和 Entry 解析；消息格式见 [05_2 消息格式与字段边界](<./017_ES改造_Canal Server_消息格式与字段边界.md>)，事务与特殊事件见 [05_3 事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 项目设计以 `db0`、`db1` 两个 destination 及各自的分表为范围，未表示已经部署或完成运行验证。
 
 ## 2 面试口述精炼版本
@@ -21,7 +21,7 @@ Server 使用复制账号连接 MySQL，读取 binlog；库表过滤规则限定
 
 依据：[MysqlEventParser](https://github.com/alibaba/canal/blob/canal-1.1.7/parse/src/main/java/com/alibaba/otter/canal/parse/inbound/mysql/MysqlEventParser.java)、[CanalEntry](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/CanalEntry.java)。本次只完成 1.1.7 源码静态核对，不表示项目运行行为已经验证。
 
-Canal 自带的消息发送功能从内部 Server 获取待确认批次，随后按消息格式和分区规则封装并发布。日志读取、事件解析与消息发布是不同阶段；发送确认及重试见 [07 RocketMQ消息发布与事务边界](<./012_09_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)，持久化进度及恢复见 [08 进度确认与单机恢复](<./012_10_ES改造_Canal Server_进度确认与单机恢复.md>)。
+Canal 自带的消息发送功能从内部 Server 获取待确认批次，随后按消息格式和分区规则封装并发布。日志读取、事件解析与消息发布是不同阶段；发送确认及重试见 [07 RocketMQ消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)，持久化进度及恢复见 [08 进度确认与单机恢复](<./022_ES改造_Canal Server_进度确认与单机恢复.md>)。
 
 ### 3.2 项目范围与字段前提
 

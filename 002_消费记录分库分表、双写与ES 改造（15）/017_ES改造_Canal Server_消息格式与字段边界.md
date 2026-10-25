@@ -1,10 +1,10 @@
-# 012_05_ES改造_Canal Server_消息格式与字段边界
+# 017_ES改造_Canal Server_消息格式与字段边界
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [05_1 Binlog读取与Entry解析](<./012_04_ES改造_Canal Server_Binlog读取与Entry解析.md>)，事务边界见 [05_3 事务边界与特殊事件](<./012_06_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [05_1 Binlog读取与Entry解析](<./016_ES改造_Canal Server_Binlog读取与Entry解析.md>)，事务边界见 [05_3 事务边界与特殊事件](<./018_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 
 ## 2 面试口述精炼版本
