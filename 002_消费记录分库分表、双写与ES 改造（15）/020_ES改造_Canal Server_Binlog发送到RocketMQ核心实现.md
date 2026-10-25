@@ -40,21 +40,37 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 源码路径会取得 RocketMQ `SendResult`，但当前核对到的发送分支主要依赖异常判断和日志记录，是否显式处置 `getSendStatus() != SEND_OK` 需要结合实际发行包进一步验证。因此不能把回调直接表述为“所有消息已可靠落盘”。
 
-## 4 参考文章与项目设计的区别
+## 4 参考文章与项目设计的对比
 
-**投递组件**
+### 4.1 共同点
 
-**参考文章：** 以实验环境部署 Canal、RocketMQ NameServer、Broker 和 Dashboard，并展示消息进入 RocketMQ 的效果。
+**发布组件：**
 
-**当前项目：** 由 Canal Server 内置 RocketMQ 生产端直接发布，不另设独立 TCP 投递组件；实际 Broker 版本和部署实例仍待确认。
+**参考文章：** Canal Server 通过内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ。
 
-**消息转换**
+**当前项目：** 同样由 Canal Server 内置 RocketMQ 生产端直接发布，不另设独立 TCP 投递组件。
+
+**处理链路：**
+
+**参考文章：** 先由 Canal Server 读取并转换 MySQL Binlog，再把消息发送到 RocketMQ，供下游消费。
+
+**当前项目：** 同样沿用 Canal Server → RocketMQ → 下游消费服务的处理链路，后续由自定义消费服务写入 ES。
+
+### 4.2 差异
+
+**实验环境与部署范围：**
+
+**参考文章：** 展示了 NameServer、Broker 和 Dashboard 等 RocketMQ 实验环境组件，并给出消息进入 RocketMQ 的效果。
+
+**当前项目：** 只确认使用 Canal Server 内置 RocketMQ 生产端；Broker 版本、部署实例数量和管理组件的实际部署情况仍待确认。
+
+**消息转换：**
 
 **参考文章：** 消费端示例直接把消息解析为 JSON，并按订单示例处理 `data` 和 `type`。
 
 **当前项目：** 生产端可按 `flatMessage` 选择 FlatMessage JSON 或 Canal 二进制 Entry；消费端必须与实际配置和封装格式匹配，不能把文章 JSON 示例当作项目实际消息契约。
 
-**批次确认**
+**批次确认：**
 
 **参考文章：** 展示发送和写入效果，但没有证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
 
