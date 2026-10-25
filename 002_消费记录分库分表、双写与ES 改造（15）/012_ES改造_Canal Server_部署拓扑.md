@@ -1,4 +1,4 @@
-# 007_ES写入链路_Canal Server_01_部署拓扑
+# 012_ES改造_Canal Server_部署拓扑
 
 以下内容按照当前项目 AGENTS.md 项目级规则中规定的技术栈版本为准。
 

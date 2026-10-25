@@ -1,4 +1,4 @@
-# 007_ES写入链路_Canal Server_04_destination过滤与分区路由
+# 014_ES改造_Canal Server_destination过滤与分区路由
 
 以下内容按照当前项目 AGENTS.md 项目级规则中规定的技术栈版本为准。
 
@@ -15,7 +15,7 @@
 ### 3.1 destination 配置示意
 
 ~~~properties
-# db0/instance.properties
+# 014_ES改造_Canal Server_destination过滤与分区路由
 canal.instance.master.address=<mysql-db0>:3306
 canal.instance.dbUsername=<canal-user>
 canal.instance.dbPassword=<managed-secret>
@@ -23,11 +23,11 @@ canal.instance.filter.regex=eas\\.consume_record_(0[1-9]|1[0-6])
 canal.instance.gtidon=true
 canal.instance.master.gtid=<db0-import-before-gtid>
 canal.mq.topic=<db0-topic>
-# 源字段名须以真实 DDL 核对，不直接使用 ES 字段 consumeId
+# 014_ES改造_Canal Server_destination过滤与分区路由
 canal.mq.partitionHash=eas\\.consume_record_(0[1-9]|1[0-6]):<source-key-column>
 canal.mq.partitionsNum=<positive-partition-count>
-# 未手工指定时使用发行包的自动生成路径；启动后核对实际复制身份
-# canal.instance.mysql.slaveId=0
+# 014_ES改造_Canal Server_destination过滤与分区路由
+# 014_ES改造_Canal Server_destination过滤与分区路由
 ~~~
 
 db1 使用自己的 MySQL 地址和导入前完整 GTID 集合；不能复制 db0 的 GTID。同一个 Server 分别加载两个 destination 的配置，并核对自动生成的复制身份不与源 MySQL 或同一复制拓扑中的其他复制客户端冲突；如改用手工值，应在同一复制拓扑内规划不同身份。`slaveId` 是 Canal 复制客户端使用的 server-id，区别于源 MySQL 实例自身的 `server-id`；它也不是 destination 名称或 MQ 内部 clientId。

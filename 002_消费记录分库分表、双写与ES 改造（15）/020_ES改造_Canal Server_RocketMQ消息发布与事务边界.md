@@ -1,4 +1,4 @@
-# 007_ES写入链路_Canal Server_07_RocketMQ消息发布与事务边界
+# 020_ES改造_Canal Server_RocketMQ消息发布与事务边界
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。本文是 Canal Server 写入链路的拆分总览；三个独立文档分别说明日志读取与解析、RocketMQ 发布与事务边界、进度确认与单机恢复。设计、实现和验证状态继续按原文边界说明。
 
@@ -105,12 +105,12 @@ Canal 一次拉取并等待确认的一组事件属于内部批次，`batchId` �
 
 ## 待确认事项
 
-Binlog 到 RocketMQ 的转换、分区和发送实现见 [05_4 Binlog发送到RocketMQ核心实现](<./007_ES写入链路_Canal Server_05_4_Binlog发送到RocketMQ核心实现.md>)；本页继续说明发送后的事务、确认与恢复边界。
+Binlog 到 RocketMQ 的转换、分区和发送实现见 [05_4 Binlog发送到RocketMQ核心实现](<./018_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)；本页继续说明发送后的事务、确认与恢复边界。
 
 - topic、分区数、队列映射、消息格式和 `partitionHash` 源列是否稳定，仍需结合实际配置验证。
 - 事务开始/提交事件是否保留、部分发送失败后的恢复顺序和非 `SEND_OK` 处理仍需运行验证。
 
 ## 关联文档
 
-- [进度确认与单机恢复](<./007_ES写入链路_Canal Server_08_进度确认与单机恢复.md>)
-- [RocketMQ 消费模型](<./008_ES写入链路_RocketMQ_RocketMQ 消费模型.md>)
+- [进度确认与单机恢复](<./021_ES改造_Canal Server_进度确认与单机恢复.md>)
+- [RocketMQ 消费模型](<./023_ES改造_RocketMQ_RocketMQ 消费模型.md>)

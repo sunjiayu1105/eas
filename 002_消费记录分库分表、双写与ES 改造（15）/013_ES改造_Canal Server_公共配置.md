@@ -1,4 +1,4 @@
-# 007_ES写入链路_Canal Server_02_公共配置
+# 013_ES改造_Canal Server_公共配置
 
 以下内容按照当前项目 AGENTS.md 项目级规则中规定的技术栈版本为准。
 
@@ -6,9 +6,7 @@
 
 沿用 Canal Server 原总览（原文档已删除，依据待补充） 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
 
-## 2 面试口述精炼版本
 
-公共配置决定 Canal Server 的运行模式、加载的 destination、本地位点模板和 RocketMQ 连接参数；它不包含 destination 专属的源库、过滤和分区配置。实际配置加载与位点落盘仍待验证。
 
 ## 3 详细方案
 
@@ -22,15 +20,15 @@
 
 ~~~properties
 canal.serverMode=rocketMQ
-# 单机部署，ZooKeeper 地址保持为空
+# 013_ES改造_Canal Server_公共配置
 canal.zkServers=
 canal.destinations=db0,db1
 canal.auto.reset.latest.pos.mode=false
 canal.instance.global.spring.xml=classpath:spring/file-instance.xml
 
-# 消息格式配置见 007_ES写入链路_Canal Server_05_2_消息格式与字段边界.md。
+# 013_ES改造_Canal Server_公共配置
 
-# 以下键名已按 1.1.7 源码核对，实际加载仍待验证
+# 013_ES改造_Canal Server_公共配置
 rocketmq.namesrv.addr=<nameserver-address>
 rocketmq.producer.group=<producer-group>
 ~~~

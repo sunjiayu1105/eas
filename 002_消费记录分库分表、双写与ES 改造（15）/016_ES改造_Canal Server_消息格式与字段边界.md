@@ -1,10 +1,10 @@
-# 007_ES写入链路_Canal Server_05_2_消息格式与字段边界
+# 016_ES改造_Canal Server_消息格式与字段边界
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [05_1 Binlog读取与Entry解析](<./007_ES写入链路_Canal Server_05_1_Binlog读取与Entry解析.md>)，事务边界见 [05_3 事务边界与特殊事件](<./007_ES写入链路_Canal Server_05_3_事务边界与特殊事件.md>)。
+- 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [05_1 Binlog读取与Entry解析](<./015_ES改造_Canal Server_Binlog读取与Entry解析.md>)，事务边界见 [05_3 事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 
 ## 2 面试口述精炼版本
@@ -20,7 +20,7 @@
 以下示例写在 Canal Server 解压目录下的全局配置文件 `conf/canal.properties` 中。官方 1.1.7 模板将 `canal.mq.flatMessage` 设为 `true`；项目实际加载值和消费端解码方式仍须核对。
 
 ~~~properties
-# true：FlatMessage JSON；false：Canal Packet/Messages 二进制封装。
+# 016_ES改造_Canal Server_消息格式与字段边界
 canal.mq.flatMessage=true
 ~~~
 
