@@ -23,7 +23,7 @@
 
 - **Canal Server**：从 MySQL 的 Binlog 读取数据库变更，并把变更交给后续处理。
 - **destination**：Canal Server 中的一条同步通道。本项目有两个 destination，分别对应 `db0` 和 `db1`。
-- **Canal 批次**：Canal 一次读取、等待确认的一组变更事件，用 `batchId` 标识；它不是 MySQL 事务编号，也不是一条 RocketMQ 消息。
+- **Canal 批次**：Canal 一次通过 `getWithoutAck` 读取、等待确认的一组变更事件，用 `batchId` 标识。它可能包含多个表的事件、同一张表的多行 INSERT/UPDATE/DELETE，或一个事务中的多条行变化；但它不是 MySQL 事务编号，也不是一条 RocketMQ 消息，后续还可能被转换并拆成多条消息。
 - **CanalMQStarter**：Canal 内置的任务入口，负责从 Server 取出未确认批次。
 - **CanalRocketMQProducer**：Canal 内置的 RocketMQ 生产端，负责把批次转换成消息、选择队列并发送。
 - **topic、队列和分区**：topic 是消息主题，队列是主题下的实际消息通道，分区规则根据 `consume_id` 计算消息应该进入哪一个队列。
