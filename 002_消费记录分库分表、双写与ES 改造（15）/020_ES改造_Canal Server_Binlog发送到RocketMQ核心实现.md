@@ -28,6 +28,8 @@
 - **CanalRocketMQProducer**：Canal 内置的 RocketMQ 生产端，负责把批次转换成消息、选择队列并发送。
 - **topic、队列和分区**：topic 是消息主题，队列是主题下的实际消息通道，分区规则根据 `consume_id` 计算消息应该进入哪一个队列。
 
+这三者可以按“生产任务 → 批次 → 生产端”理解：CanalMQStarter 调用 `getWithoutAck` 读取一个 Canal 批次，把这个批次交给 CanalRocketMQProducer；CanalRocketMQProducer 将批次转换成 FlatMessage JSON，按 `consume_id` 计算目标队列并发送到 RocketMQ。发送完成后，生产端通过回调通知 CanalMQStarter：成功时确认这个 `batchId`，异常时回滚这个 `batchId`。
+
 整条链路可以先记成四步：**取批次 → 转成 FlatMessage JSON → 按 `consume_id` 选队列并发送 → 根据发送结果确认或回滚 Canal 批次**。本章只展开这四步，Entry 字段定义见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)，发布后的确认边界见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
 
 ### 3.2 获取 Canal 批次
@@ -227,6 +229,8 @@ waitForPartitionTasks();
 本轮按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 复核了面向 Canal 初学者的讲解顺序，新增角色说明和“四步链路”概览，并在配置与代码前补充了阅读提示。技术结论、来源和未验证边界未改变；未执行 Canal、RocketMQ 或 ES 联调。
 
 本轮修正了第 3 章新增小节的连续编号，将角色说明和后续步骤统一为 `3.1`～`3.7`。
+
+本轮补充了 CanalMQStarter、Canal 批次和 CanalRocketMQProducer 三者的传递关系，以及发送完成后的确认/回滚回调关系；未改变原有技术结论。
 
 ## 7 参考来源
 
