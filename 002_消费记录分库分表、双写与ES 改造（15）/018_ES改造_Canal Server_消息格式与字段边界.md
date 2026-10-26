@@ -109,6 +109,48 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 
 上例中，`data[0]` 与 `old[0]` 表示 `c-1001` 从 `10.00` 更新为 `12.00`，`data[1]` 与 `old[1]` 表示 `c-1002` 从 `20.00` 更新为 `22.00`。如果按 `consume_id` 分区，拆分到不同队列时也必须分别保留这两组对应关系，不能先单独排序或重新组合 `data`、`old`。INSERT 和 DELETE 通常没有需要配对的 `old`；多行 UPDATE 的数组长度、空值表示和实际拆分结果仍需结合运行消息样例核对。
 
+同一份多行 FlatMessage，可能因为分区结果不同而形成不同的 RocketMQ 消息形态。下面的队列名仅用于说明，不代表项目已经确定的队列映射。
+
+**场景一：多行变更被拆成多条消息**
+
+如果 `c-1001` 和 `c-1002` 被计算到不同队列，生产端可以分别发送两条消息。每条消息仍保留对应行的 `data` 和 `old`：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [{"consume_id": "c-1001", "amount": "12.00"}],
+  "old": [{"amount": "10.00"}]
+}
+```
+
+```json
+{
+  "type": "UPDATE",
+  "data": [{"consume_id": "c-1002", "amount": "22.00"}],
+  "old": [{"amount": "20.00"}]
+}
+```
+
+**场景二：多行变更仍由一条消息发送**
+
+如果 `c-1001` 和 `c-1002` 被计算到同一个队列，生产端可以保留一条消息，消息中的 `data` 和 `old` 仍按下标对应：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1001", "amount": "12.00"},
+    {"consume_id": "c-1002", "amount": "22.00"}
+  ],
+  "old": [
+    {"amount": "10.00"},
+    {"amount": "20.00"}
+  ]
+}
+```
+
+这两个场景都属于 FlatMessage JSON 作为 RocketMQ 消息体发送的示意；实际生产端是否按行拆分、按队列合并，以及一条消息最终包含多少行，仍需结合 Canal 发行包、项目配置和真实消息样例核对。
+
 ## 4 参考文章与项目设计的区别
 
 **消息解析方式**
@@ -142,3 +184,5 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，在拆分对应关系中补充多行 UPDATE 的 `data[i]` 与 `old[i]` 示例及分区后的保持规则。
 
 本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充 FlatMessage 对象、FlatMessage JSON 与 RocketMQ 消息体之间的关系，并明确示例的精简范围。
+
+本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充多行 FlatMessage 被拆成多条消息和保留为一条消息发送的对比示例。
