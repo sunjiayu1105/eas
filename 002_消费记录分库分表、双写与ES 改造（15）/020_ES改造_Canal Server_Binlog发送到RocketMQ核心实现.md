@@ -113,7 +113,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ## 5 待确认或待验证事项
 
-- 实际发行包使用的 Canal 内置 RocketMQ 客户端版本和 Broker 版本是什么？
+- Canal Server 版本已确认为 1.1.7；实际发行包内置 RocketMQ 客户端的具体依赖版本和 RocketMQ Broker 版本仍需分别核对，不能用业务应用的 `rocketmq-client 5.2.0` 代替。
 - `canal.mq.flatMessage` 的实际加载值与消费端解码方式是否一致？
 - topic、分区数、`partitionHash` 源列和队列映射是否稳定？
 - `SendResult` 非 `SEND_OK` 且未抛异常时，生产端是否仍提交 Canal 批次？
