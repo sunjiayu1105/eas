@@ -8,6 +8,7 @@
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 - 本文按 Canal 初学者能够连续理解的顺序编写：先说明消息在 Canal 链路中的位置，再说明格式开关、字段含义、拆分对应关系和项目字段契约。
+- 当前项目要求 UPDATE 的 `data` 保证为完整更新后行；只有通过完整性校验的消息，才能按完整文档覆盖写入 ES。该要求的配置和运行效果仍需验证。
 
 ## 2 面试口述精炼版本
 
@@ -86,6 +87,10 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 **二进制消息：** 先解码 Canal Packet/Messages，再解析 Entry 的 RowChange/RowData。Entry Header 可保留日志文件和偏移；按键分区拆行时复制原 Header，但不新增拆分前的原始行序号，不能只凭文件和偏移区分同一原始事件内的多行。
 
 **项目字段契约：** 业务主键、操作类型、原始 `create_time`、来源映射和必要业务列按用途传递。新增、更新携带同次变更的行后数据及 `version`；DELETE 保留删除前的 `consume_id`（业务代码中可映射为 `consumeId`）、原始 `create_time` 等定位信息。独立事件 ID是否必要仍待确认，MQ messageId、Canal batchId 和拆分后下标不能单独作为稳定源事件身份。
+
+**UPDATE 完整行约束：** 源库应使用 `binlog_row_image=FULL`，使 UPDATE 的 Binlog 行事件包含完整的更新后列；Canal 转换时不能再过滤 ES 所需字段。生产端发送前还要按表定义检查 `data` 是否包含 `consume_id`、`create_time`、业务字段和 `version` 等必要列，缺少字段时不能直接按完整文档覆盖写入，应进入重试或异常处理流程。`old` 只记录变化字段的旧值，不能用来补齐缺失的完整行。
+
+完整性满足后，消费端可以读取 `data` 的完整行，按业务主键和 `version` 判断新旧，再用完整行覆盖写入 ES；不需要依赖 `old` 合并字段。
 
 ### 3.4 拆分后的对应关系
 
@@ -219,10 +224,14 @@ private void doHandler(ElasticMessageTypeEnum type,
 ## 5 待确认或待验证事项
 
 - 运行实例是否实际加载 `canal.mq.flatMessage=true`，以及真实消息字段是否满足 JSON 消费契约？
+- 源库是否实际使用 `binlog_row_image=FULL`，并且 Canal 输出的 UPDATE `data` 是否包含 ES 所需的完整字段？
+- 生产端是否已对 UPDATE `data` 执行完整性校验，缺少必要字段时是否阻止完整文档覆盖写入？
 - 多行 UPDATE 的 `data`、`old`、空值、列集合和业务版本是否正确对应？
 - 是否需要独立事件级去重及 `eventId`？如采用坐标事件 ID，如何在拆分前保留原始行序号？
 
 ## 6 复核记录
+
+本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充 UPDATE 完整行数据的设计约束、`binlog_row_image=FULL` 前置条件、生产端完整性校验和运行验证事项。
 
 本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充参考文章的消息解析代码，并区分其对多条 `data` 的支持与对 `old` 配对规则的未覆盖。
 
