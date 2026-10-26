@@ -63,8 +63,8 @@ Canal FlatMessage JSON 是 Canal Server 将 MySQL Binlog 事件转换成的 JSON
 
 CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
-- `true`：调用消息转换逻辑生成 FlatMessage JSON，再序列化为 RocketMQ 消息体；`data`、`old`、事件类型和来源字段的边界见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
-- `false`：保留 Canal Entry，按 Canal Packet/Messages 二进制格式封装，再交给 RocketMQ Producer 发送。
+- 当前项目采用 `true`：调用消息转换逻辑生成 FlatMessage JSON，再序列化为 RocketMQ 消息体；`data`、`old`、事件类型和来源字段的边界见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
+- Canal 1.1.7 源码仍保留 `false` 的二进制封装分支，但它不属于当前项目已确认的消息格式；不能据此把项目消息契约写成 JSON 与二进制二选一。
 
 格式开关位于 Canal Server 解压目录下的 `conf/canal.properties`。模板默认值不等于当前部署值，实际加载结果和消费端解码方式仍需核对。
 
@@ -229,6 +229,8 @@ waitForPartitionTasks();
 本轮补充了 Canal/RocketMQ 核心配置示例和依据 Canal 1.1.7 源码整理的批次获取、分区发送、等待结果及提交/回滚代码片段；示例中的占位符、注释和代码均不代表当前部署值或新增可编译实现，未执行 Canal、RocketMQ 或 ES 联调。
 
 本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，复核了新增配置、代码注释、口述版与详细方案的一致性；剩余问题仅涉及实际配置、发行包行为和运行联调验证。
+
+本轮再次复核消息格式表述，明确当前项目只采用 FlatMessage JSON；源码中的二进制分支仅作为 1.1.7 的实现边界保留，不再作为项目方案选项。
 
 ## 7 参考来源
 
