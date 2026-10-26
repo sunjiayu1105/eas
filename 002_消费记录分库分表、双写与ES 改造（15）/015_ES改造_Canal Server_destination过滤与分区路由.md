@@ -8,7 +8,7 @@
 
 ## 2 面试口述精炼版本
 
-每个 destination（同步通道）分别配置源库连接、表过滤、GTID 起点和消息路由。首次使用导入前事务标识基线，后续按已保存进度接续；按真实源列选择队列，但同键入队不等于并发消费按顺序完成。过滤范围、源列和队列映射仍待验证。
+每个 destination（同步通道）分别配置源库连接、表过滤、GTID 起点、固定 topic 和消息路由；两个 topic 共用同一消息契约和消费逻辑。首次使用导入前事务标识基线，后续按已保存进度接续；按 `consume_id` 选择队列，但同键入队不等于并发消费按顺序完成。过滤范围和队列映射仍待验证。
 
 ## 3 详细方案
 
@@ -34,7 +34,7 @@ Java properties 文件中的 `\\.` 解析后是正则的 `\.`。上述库表过�
 
 消费端候选 `orderKey` 为 `destination + database + table + consumeId`，用于内部顺序状态；它不是原生生产端直接拼接的 hash 字符串。1.1.7 的 `partitionHash` 按库表规则匹配源列，DELETE 使用删除前列，INSERT/UPDATE 使用变更后列；开启 `canal.mq.database.hash` 时还混入库名。topic、字段值、分区数和队列列表稳定，才可核对同键是否始终到同一队列。消费端采用 `CONCURRENTLY`（并发消费），单次回调仍同步等待当前消息内的 ES 结果；同键消息可能并发或乱序完成，由 ES 按来源版本拒绝旧写入。Tag 只做过滤。
 
-上面的正则覆盖 16 张表，旧示例只配置 `consume_record_01` 会让未匹配表走默认分区。当前设计将 `consume_id` 确认为真实源字段 `consume_id`，并核对 INSERT、UPDATE、DELETE 均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
+上面的正则覆盖 16 张表，旧示例只配置 `consume_record_01` 会让未匹配表走默认分区。当前设计已确定使用 MySQL 源列 `consume_id`，INSERT、UPDATE 取变更后值，DELETE 取删除前值；仍须核对三类事件均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
 
 同一 destination 同时只启动一个 Server 读取和发布，不能在旧进程仍运行时另起重复进程。原生生产端的队列映射、topic 队列数量、重试和重启恢复都需验证路由与来源信息保持稳定。重放或并发处理时，消费端仍须携带稳定来源版本拒绝旧写入；业务版本只比较同一记录的新旧，记录迁移时须保持版本连续性。
 
@@ -52,10 +52,10 @@ Java properties 文件中的 `\\.` 解析后是正则的 `\.`。上述库表过�
 
 ### 3. 过滤、分区与消息路由不同
 
-- 文章监听 `order_db\.orders.*`，以 `order_no` 作为 `partitionHash`，并示例使用 8 个分区和动态获取队列数；当前项目按 `eas\.consume_record_(0[1-9]|1[0-6])` 的 16 张分表配置候选范围，每个 destination 使用自己的 topic、源字段和正数分区数，是否稳定路由仍待验证。
-- 文章的分区示例用于说明同一订单进入同一队列；当前项目不能直接把 ES 字段名或 `consumeId` 当作 `partitionHash` 源列，必须以真实 MySQL DDL 核对 INSERT、UPDATE、DELETE 的取值，并分别核对两个 destination 的队列映射。
+- 文章监听 `order_db\.orders.*`，以 `order_no` 作为 `partitionHash`，并示例使用 8 个分区和动态获取队列数；当前项目按 `eas\.consume_record_(0[1-9]|1[0-6])` 的 16 张分表配置候选范围，每个 destination 使用自己的固定 topic，两个 topic 共用同一消息契约和消费逻辑，`partitionHash` 源列确定为 `consume_id`，正数分区数和稳定路由仍待验证。
+- 文章的分区示例用于说明同一订单进入同一队列；当前项目已确定使用 MySQL 源列 `consume_id`，但仍须分别核对两个 destination 的队列映射及 INSERT、UPDATE、DELETE 的实际取值。
 - 文章示例把配置和运行结果放在同一实验链路中；当前项目采用 Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件，MQ 工作线程的订阅、批次确认和重试边界仍按 Canal 1.1.7 发行包核验。
 
 ## 5 待确认或待验证事项
 
-首次 GTID 基线、过滤范围、复制身份、源字段及队列映射仍需在两个源库分别验证。
+首次 GTID 基线、过滤范围、复制身份、分区数及队列映射仍需在两个源库分别验证；topic 按 destination 分开、消息契约和消费逻辑共用、`partitionHash` 源列为 `consume_id` 已确定。
