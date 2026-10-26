@@ -59,6 +59,8 @@ flowchart LR
 
 ### 3.2 转换消息格式
 
+Canal FlatMessage JSON 是 Canal Server 将 MySQL Binlog 事件转换成的 JSON 消息格式，供 RocketMQ 消费端按字段解析。`type` 表示事件类型，`data` 表示变更后的数据，`old` 表示 UPDATE 时发生变化的旧字段值；具体字段是否完整输出，仍需以实际运行配置和消息样例为准。
+
 CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 - `true`：调用消息转换逻辑生成 FlatMessage JSON，再序列化为 RocketMQ 消息体；`data`、`old`、事件类型和来源字段的边界见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
