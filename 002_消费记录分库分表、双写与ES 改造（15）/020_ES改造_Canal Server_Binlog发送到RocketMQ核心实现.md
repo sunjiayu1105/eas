@@ -118,7 +118,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 - Canal 内置客户端 `4.8.0` 连接规划中的 Broker `5.2.0` 时，批量发送、重试、认证、队列路由和结果不明恢复仍待兼容性联调验证。
 - 运行实例是否实际加载 `canal.mq.flatMessage=true`、真实消息是否符合 FlatMessage JSON 契约，以及消费端解析结果仍待验证。
-- 分区数、对应 topic 的队列列表和队列映射是否稳定，仍需结合实际配置验证；`partitionHash` 源列已确定为 `consume_id`。
+- 分区数、对应 topic 的队列列表和队列映射是否稳定，仍需结合实际配置验证。
 - `SendResult` 非 `SEND_OK` 且未抛异常时，生产端是否仍提交 Canal 批次？
 - 部分分区成功、超时或结果不明时，重复消息和恢复顺序是否符合预期？
 
