@@ -83,6 +83,24 @@ canal.mq.flatMessage=true
 
 分区代码按 `data` 中的行计算分区，并用同一下标取对应的 `old`；二进制按键分区复制对应 RowData 后重新分组。源码体现了配对方式，但项目仍须验证多行更新、空值、列集合和业务版本在拆分后的对应关系。
 
+这里的“同一下标”是指同一条多行 UPDATE 消息中，`data[i]` 和 `old[i]` 描述同一行的更新后值和更新前旧值。例如：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1001", "amount": "12.00"},
+    {"consume_id": "c-1002", "amount": "22.00"}
+  ],
+  "old": [
+    {"amount": "10.00"},
+    {"amount": "20.00"}
+  ]
+}
+```
+
+上例中，`data[0]` 与 `old[0]` 表示 `c-1001` 从 `10.00` 更新为 `12.00`，`data[1]` 与 `old[1]` 表示 `c-1002` 从 `20.00` 更新为 `22.00`。如果按 `consume_id` 分区，拆分到不同队列时也必须分别保留这两组对应关系，不能先单独排序或重新组合 `data`、`old`。INSERT 和 DELETE 通常没有需要配对的 `old`；多行 UPDATE 的数组长度、空值表示和实际拆分结果仍需结合运行消息样例核对。
+
 ## 4 参考文章与项目设计的区别
 
 **消息解析方式**
@@ -112,3 +130,5 @@ canal.mq.flatMessage=true
 本轮已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充并复核了 INSERT、UPDATE、DELETE 的 FlatMessage JSON 字段含义示例。
 
 本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，按 Canal 初学者的连续理解顺序调整了口述版和详细方案，并将该编写规则记录到“已确认规则”。
+
+本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，在拆分对应关系中补充多行 UPDATE 的 `data[i]` 与 `old[i]` 示例及分区后的保持规则。
