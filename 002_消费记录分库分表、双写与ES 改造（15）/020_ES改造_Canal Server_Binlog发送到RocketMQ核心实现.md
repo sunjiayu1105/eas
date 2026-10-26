@@ -9,6 +9,8 @@
 - Canal 1.1.7 官方构建资料声明使用 RocketMQ 客户端 `4.8.0`；该结论用于记录官方构建口径，不据此断言当前运行实例的 JAR 已加载。
 - 当前项目规划使用 RocketMQ Broker `5.2.0`；这是已确认的设计选择，实际部署和兼容性仍需验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
+- 两个 destination 分别使用固定 topic；两个 topic 共用同一消息契约和消费逻辑。
+- `partitionHash` 源列确定为新表的 `consume_id`；INSERT 和 UPDATE 使用变更后的值，DELETE 使用删除前的值。
 
 ## 2 面试口述精炼版本
 
@@ -66,7 +68,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ### 3.3 分区和消息发送
 
-每个 destination 使用独立且稳定的 topic；两个 topic 共用同一消息契约和消费逻辑。生产端再根据对应 topic、分区数和 `partitionHash` 计算目标队列。启用按键分区时，源码可能按行重建 Entry 或重新组织 FlatMessage；同一源记录的路由稳定性取决于真实源列、哈希配置和队列映射，不能直接套用参考文章的固定分区数。
+每个 destination 使用独立且稳定的 topic；两个 topic 共用同一消息契约和消费逻辑。生产端根据对应 topic、分区数和 `partitionHash` 计算目标队列，其中 `partitionHash` 使用新表的 `consume_id`：INSERT 和 UPDATE 取变更后的值，DELETE 取删除前的值。启用按键分区时，源码可能按行重建 Entry 或重新组织 FlatMessage；同一源记录的路由稳定性仍取决于真实哈希配置和队列映射，不能直接套用参考文章的固定分区数。
 
 每个分区形成一个待发送消息或消息集合，生产端调用 RocketMQ Producer 的同步发送方法，并等待本轮分区发送任务结束。部分分区已成功、其他分区失败时，进入 MQ 的消息不会因 Canal 回滚而自动撤回，后续可能重复发送。
 
