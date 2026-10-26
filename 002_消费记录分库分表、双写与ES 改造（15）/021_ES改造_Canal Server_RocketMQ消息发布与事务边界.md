@@ -16,9 +16,9 @@ Canal Server 由内置 RocketMQ 生产端按源字段分区发布消息。一个
 
 #### 3.1 消息分区与来源顺序
 
-消费端候选 `orderKey` 为 `destination + database + table + consumeId`，用于内部顺序状态；它不是原生生产端直接拼接的 hash 字符串。1.1.7 的 `partitionHash` 按库表规则匹配源列，DELETE 使用删除前列，INSERT/UPDATE 使用变更后列；开启 `canal.mq.database.hash` 时还混入库名。topic、字段值、分区数和队列列表稳定，才可核对同键是否始终到同一队列。消费端采用 `CONCURRENTLY`（并发消费），单次回调仍同步等待当前消息内的 ES 结果；同键消息可能并发或乱序完成，由 ES 按来源版本拒绝旧写入。Tag 只做过滤。
+消费端候选 `orderKey` 为 `destination + database + table + consumeId`，用于内部顺序状态；它不是原生生产端直接拼接的 hash 字符串。1.1.7 的 `partitionHash` 按库表规则匹配源列，DELETE 使用删除前列，INSERT/UPDATE 使用变更后列；开启 `canal.mq.database.hash` 时还混入库名。两个 destination 分别使用固定 topic，但共用同一消息契约和消费逻辑；在对应 topic、字段值、分区数和队列列表稳定时，才可核对同键是否始终到同一队列。消费端采用 `CONCURRENTLY`（并发消费），单次回调仍同步等待当前消息内的 ES 结果；同键消息可能并发或乱序完成，由 ES 按来源版本拒绝旧写入。Tag 只做过滤。
 
-上面的正则覆盖 16 张表，旧示例只配置 `consume_record_01` 会让未匹配表走默认分区。`<source-key-column>` 须替换为真实源字段并核对 INSERT、UPDATE、DELETE 均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
+上面的正则覆盖 16 张表，旧示例只配置 `consume_record_01` 会让未匹配表走默认分区。当前设计将源字段确定为 `consume_id`，并须核对 INSERT、UPDATE、DELETE 均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
 
 同一 destination 同时只启动一个 Server 读取和发布，不能在旧进程仍运行时另起重复进程。原生生产端的队列映射、topic 队列数量、重试和重启恢复都需验证路由与来源信息保持稳定。重放或并发处理时，消费端仍须携带稳定来源版本拒绝旧写入；业务版本只比较同一记录的新旧，记录迁移时须保持版本连续性。
 
@@ -107,7 +107,7 @@ Canal 一次拉取并等待确认的一组事件属于内部批次，`batchId` �
 
 Binlog 到 RocketMQ 的转换、分区和发送实现见 [Binlog发送到RocketMQ核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)；本页继续说明发送后的事务、确认与恢复边界。
 
-- topic、分区数、队列映射、消息格式和 `partitionHash` 源列是否稳定，仍需结合实际配置验证。
+- 两个 destination 是否分别使用固定 topic，且两个 topic 是否共用同一消息契约和消费逻辑；各自的分区数、队列映射和 `partitionHash` 源列仍需结合实际配置验证。
 - 事务开始/提交事件是否保留、部分发送失败后的恢复顺序和非 `SEND_OK` 处理仍需运行验证。
 
 ## 5 关联文档

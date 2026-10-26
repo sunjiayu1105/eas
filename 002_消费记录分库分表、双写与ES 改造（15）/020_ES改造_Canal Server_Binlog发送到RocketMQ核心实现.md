@@ -66,7 +66,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ### 3.3 分区和消息发送
 
-生产端先根据 topic、分区数和 `partitionHash` 计算目标队列。启用按键分区时，源码可能按行重建 Entry 或重新组织 FlatMessage；同一源记录的路由稳定性取决于真实源列、哈希配置和队列映射，不能直接套用参考文章的固定分区数。
+每个 destination 使用独立且稳定的 topic；两个 topic 共用同一消息契约和消费逻辑。生产端再根据对应 topic、分区数和 `partitionHash` 计算目标队列。启用按键分区时，源码可能按行重建 Entry 或重新组织 FlatMessage；同一源记录的路由稳定性取决于真实源列、哈希配置和队列映射，不能直接套用参考文章的固定分区数。
 
 每个分区形成一个待发送消息或消息集合，生产端调用 RocketMQ Producer 的同步发送方法，并等待本轮分区发送任务结束。部分分区已成功、其他分区失败时，进入 MQ 的消息不会因 Canal 回滚而自动撤回，后续可能重复发送。
 
@@ -118,7 +118,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 - Canal 内置客户端 `4.8.0` 连接规划中的 Broker `5.2.0` 时，批量发送、重试、认证、队列路由和结果不明恢复仍待兼容性联调验证。
 - 运行实例是否实际加载 `canal.mq.flatMessage=true`、真实消息是否符合 FlatMessage JSON 契约，以及消费端解析结果仍待验证。
-- topic、分区数、`partitionHash` 源列和队列映射是否稳定？
+- 两个 destination 是否分别使用固定 topic，且两个 topic 的消息契约和消费逻辑保持一致？对应的分区数、`partitionHash` 源列和队列映射是否稳定？
 - `SendResult` 非 `SEND_OK` 且未抛异常时，生产端是否仍提交 Canal 批次？
 - 部分分区成功、超时或结果不明时，重复消息和恢复顺序是否符合预期？
 
