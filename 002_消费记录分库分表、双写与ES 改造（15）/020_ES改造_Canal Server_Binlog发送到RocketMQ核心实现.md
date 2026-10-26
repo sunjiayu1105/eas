@@ -4,8 +4,11 @@
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；事务边界、提交与回滚影响见 [07 RocketMQ消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)。
+- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；事务边界、提交与回滚影响见 [021 RocketMQ消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)。
 - 当前项目采用 Canal Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件；本文描述的是 Canal 1.1.7 源码路径，未表示实际发行包已部署或验证。
+- Canal 1.1.7 官方构建资料声明使用 RocketMQ 客户端 `4.8.0`；该结论用于记录官方构建口径，不据此断言当前运行实例的 JAR 已加载。
+- 当前项目规划使用 RocketMQ Broker `5.2.0`；这是已确认的设计选择，实际部署和兼容性仍需验证。
+- 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 
 ## 2 面试口述精炼版本
 
@@ -85,7 +88,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **参考文章：** 展示了 NameServer、Broker 和 Dashboard 等 RocketMQ 实验环境组件，并给出消息进入 RocketMQ 的效果。
 
-**当前项目：** 只确认使用 Canal Server 内置 RocketMQ 生产端；Broker 版本、部署实例数量和管理组件的实际部署情况仍待确认。
+**当前项目：** 使用 Canal Server 内置 RocketMQ 生产端，规划连接 RocketMQ Broker `5.2.0`；Broker 的实际部署实例数量和管理组件仍待确认。
 
 ### 4.2 消息处理链路与格式
 
@@ -97,7 +100,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **参考文章：** 消费端示例直接把消息解析为 JSON，并按订单示例处理 `data` 和 `type`。
 
-**当前项目：** 生产端可按 `flatMessage` 选择 FlatMessage JSON 或 Canal 二进制 Entry；消费端必须与实际配置和封装格式匹配，不能把文章 JSON 示例当作项目实际消息契约，后续由自定义消费服务写入 ES。
+**当前项目：** 设计上固定使用 FlatMessage JSON，由自定义消费服务按 JSON 解析后写入 ES；`canal.mq.flatMessage=true` 的运行时加载结果、字段完整性和消费端实际实现仍需核对，不能把文章示例当作已完成的运行验证。
 
 ### 4.3 批次确认与结果边界
 
@@ -113,8 +116,8 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ## 5 待确认或待验证事项
 
-- Canal Server 版本已确认为 1.1.7；实际发行包内置 RocketMQ 客户端的具体依赖版本和 RocketMQ Broker 版本仍需分别核对，不能用业务应用的 `rocketmq-client 5.2.0` 代替。
-- `canal.mq.flatMessage` 的实际加载值与消费端解码方式是否一致？
+- Canal 内置客户端 `4.8.0` 连接规划中的 Broker `5.2.0` 时，批量发送、重试、认证、队列路由和结果不明恢复仍待兼容性联调验证。
+- 运行实例是否实际加载 `canal.mq.flatMessage=true`、真实消息是否符合 FlatMessage JSON 契约，以及消费端解析结果仍待验证。
 - topic、分区数、`partitionHash` 源列和队列映射是否稳定？
 - `SendResult` 非 `SEND_OK` 且未抛异常时，生产端是否仍提交 Canal 批次？
 - 部分分区成功、超时或结果不明时，重复消息和恢复顺序是否符合预期？
@@ -129,6 +132,10 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 本轮将对比章节中重复的相同点合并为单段，保留差异项的对象分段说明。
 
+本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，修正了事务边界文档链接文字与当前文件编号不一致的问题；剩余内容仅保留待确认或待验证事项。
+
+本轮根据用户确认，将消息格式从“JSON 或二进制待选”收敛为 FlatMessage JSON 设计；未将运行时配置、真实消息样例或端到端消费结果写成已验证事实。
+
 ## 7 参考来源
 
 ### 7.1 Canal Server 内置生产链路
@@ -141,6 +148,8 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 - [Canal 1.1.7 canal.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/canal.properties)：支持本文关于 `canal.mq.flatMessage`、RocketMQ 连接参数和 Canal Server 全局配置入口的说明。
 - [Canal 1.1.7 instance.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/example/instance.properties)：支持本文关于 destination 实例配置与 MQ topic、分区相关参数的来源核对。
+- [Canal 1.1.7 官方构建 POM（工作区保存副本）](<../tmp/canal-doc-corrections-20261007/sources/canal-pom.xml>)：其中声明 Canal 版本为 `1.1.7`、`rocketmq_version` 为 `4.8.0`，用于确认官方构建口径；不据此断言当前运行实例的 JAR 已加载。
+- [工作区 Canal 配置模板](<../tmp/canal-doc-corrections-20261007/sources/canal.properties>)：其中将 `canal.mq.flatMessage` 设为 `true`，用于确认模板默认口径；该文件不是当前运行实例的实际加载配置。
 - [FlatMessage（Canal 1.1.7）](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/FlatMessage.java)：支持本文关于 FlatMessage JSON 字段模型的说明；字段是否在当前部署中实际输出，仍需运行验证。
 - [CanalMessageSerializerUtil（Canal 1.1.7）](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/util/CanalMessageSerializerUtil.java)：支持本文关于 Canal 二进制消息序列化边界的说明。
 

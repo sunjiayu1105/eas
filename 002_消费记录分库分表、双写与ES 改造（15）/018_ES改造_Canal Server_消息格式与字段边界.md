@@ -6,6 +6,7 @@
 
 - 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)，事务边界见 [事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
+- 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 
 ## 2 面试口述精炼版本
 
@@ -17,7 +18,7 @@
 
 ### 3.1 配置文件与格式开关
 
-以下示例写在 Canal Server 解压目录下的全局配置文件 `conf/canal.properties` 中。官方 1.1.7 模板将 `canal.mq.flatMessage` 设为 `true`；项目实际加载值和消费端解码方式仍须核对。
+以下示例写在 Canal Server 解压目录下的全局配置文件 `conf/canal.properties` 中。当前项目设计要求 `canal.mq.flatMessage=true`；实际运行实例是否加载该值，以及消费端是否按约定解析，仍须核对。
 
 ~~~properties
 canal.mq.flatMessage=true
@@ -43,7 +44,7 @@ canal.mq.flatMessage=true
 
 **参考文章：** 消费代码把消息解析为 JSON，从 `data` 读取订单列表，再按 `type` 分派 INSERT、UPDATE、DELETE。
 
-**当前项目：** 需按 `canal.mq.flatMessage` 实际取值核对 JSON 或二进制 Entry，区分行后值、DELETE 行前值和 UPDATE 的变化列旧值。
+**当前项目：** 设计上固定采用 FlatMessage JSON，按约定区分行后值、DELETE 行前值和 UPDATE 的变化列旧值；运行实例配置和真实消息字段仍须核对。
 
 **业务版本传递**
 
@@ -53,10 +54,12 @@ canal.mq.flatMessage=true
 
 ## 5 待确认或待验证事项
 
-- 实际加载的 `canal.mq.flatMessage` 值与消费端解码方式是否一致？
+- 运行实例是否实际加载 `canal.mq.flatMessage=true`，以及真实消息字段是否满足 JSON 消费契约？
 - 多行 UPDATE 的 `data`、`old`、空值、列集合和业务版本是否正确对应？
 - 是否需要独立事件级去重及 `eventId`？如采用坐标事件 ID，如何在拆分前保留原始行序号？
 
 ## 6 复核记录
 
 本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；已静态核对 Canal 1.1.7 源码，未执行实际消息样例和联调。
+
+本轮根据用户确认，将当前项目消息格式设计收敛为 FlatMessage JSON；运行配置、消息样例和端到端解析仍未验证。
