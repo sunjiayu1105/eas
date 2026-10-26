@@ -157,6 +157,57 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 
 **参考文章：** 消费代码把消息解析为 JSON，从 `data` 读取订单列表，再按 `type` 分派 INSERT、UPDATE、DELETE。
 
+参考文章中对应的消费者代码见 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案.md>) 第 1038 行附近，核心逻辑如下：
+
+```java
+public void ordersMessageHandle(String message) throws IOException {
+    if (StringUtils.isEmpty(message)) {
+        return;
+    }
+
+    JSONObject msgObj = JSONObject.parseObject(message);
+
+    // 忽略 DDL 消息
+    if (Boolean.TRUE.equals(msgObj.get("isDdl"))) {
+        return;
+    }
+
+    // 读取消息类型并分派
+    Object typeObj = msgObj.get("type");
+    if (Objects.isNull(typeObj)
+            || ElasticMessageTypeEnum.getType(typeObj.toString()) == null) {
+        return;
+    }
+
+    doHandler(ElasticMessageTypeEnum.getType(typeObj.toString()), msgObj);
+}
+
+private void doHandler(ElasticMessageTypeEnum type,
+                       JSONObject msgObj) throws IOException {
+    // 将 data 解析成订单列表
+    List<OrderDto> orderList = msgObj.getObject(
+            "data", new TypeReference<List<OrderDto>>() {});
+
+    if (CollectionUtils.isEmpty(orderList)) {
+        return;
+    }
+
+    switch (type) {
+        case INSERT:
+            insertProcess(orderList);
+            break;
+        case UPDATE:
+            updateProcess(orderList);
+            break;
+        case DELETE:
+            deleteProcess(orderList);
+            break;
+    }
+}
+```
+
+文章后续的 `insertProcess`、`updateProcess` 和 `deleteProcess` 都接收 `orderList`，并通过循环逐条处理订单。因此，参考文章能够证明 `data` 可以包含多条数据；但该代码没有解析或使用 `old`，不能证明多行 UPDATE 的 `data[i]` 与 `old[i]` 配对规则。
+
 **当前项目：** 设计上固定采用 FlatMessage JSON，按约定区分行后值、DELETE 行前值和 UPDATE 的变化列旧值；运行实例配置和真实消息字段仍须核对。
 
 **业务版本传递**
@@ -172,6 +223,8 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 - 是否需要独立事件级去重及 `eventId`？如采用坐标事件 ID，如何在拆分前保留原始行序号？
 
 ## 6 复核记录
+
+本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充参考文章的消息解析代码，并区分其对多条 `data` 的支持与对 `old` 配对规则的未覆盖。
 
 本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；已静态核对 Canal 1.1.7 源码，未执行实际消息样例和联调。
 
