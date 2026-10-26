@@ -41,6 +41,14 @@ canal.mq.flatMessage=true
 
 **FlatMessage JSON：** `data` 使用 INSERT/UPDATE 的行后列、DELETE 的行前列。UPDATE 的 `old` 根据变化列集合筛选旧列值，不是完整行前镜像；多行更新须核对实际输出。类中定义 `gtid` 字段并从 Header 赋值，但不保证每条消息都有可用 GTID；`es` 是事件执行时间，`ts` 是转换时系统时间，均不等于业务记录的原始 `create_time`。
 
+这里要区分三个层次：Canal 先组织 `FlatMessage` 对象，再将对象序列化为 FlatMessage JSON，最后把 JSON 作为 RocketMQ 消息体发送：
+
+```text
+FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
+```
+
+下面的 JSON 只展示 `type`、`data`、`old` 的字段关系，是精简示例，不代表当前运行实例最终发送的完整消息；数据库、表名、主键、时间和 `gtid` 等字段是否存在，仍需通过实际消息样例核对。
+
 例如，同一条消费记录的三类事件可以这样理解：
 
 **INSERT：** `data` 是新插入的行，`old` 通常为空。
@@ -132,3 +140,5 @@ canal.mq.flatMessage=true
 本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，按 Canal 初学者的连续理解顺序调整了口述版和详细方案，并将该编写规则记录到“已确认规则”。
 
 本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，在拆分对应关系中补充多行 UPDATE 的 `data[i]` 与 `old[i]` 示例及分区后的保持规则。
+
+本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充 FlatMessage 对象、FlatMessage JSON 与 RocketMQ 消息体之间的关系，并明确示例的精简范围。
