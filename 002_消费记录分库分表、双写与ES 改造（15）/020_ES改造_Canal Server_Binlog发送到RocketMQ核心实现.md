@@ -79,9 +79,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **相同点：**
 
-**参考文章：** 由 Canal Server 内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ，不另设独立 TCP 投递组件。
-
-**当前项目：** 同样由 Canal Server 内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ，不另设独立 TCP 投递组件。
+参考文章和当前项目都由 Canal Server 内置 RocketMQ 生产端将 Binlog 变更消息发布到 RocketMQ，不另设独立 TCP 投递组件。
 
 **不同点：**
 
@@ -93,9 +91,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **相同点：**
 
-**参考文章：** 经过 Canal Server 读取并转换 MySQL Binlog，再将消息发送到 RocketMQ，供下游消费。
-
-**当前项目：** 同样经过 Canal Server 读取并转换 MySQL Binlog，再将消息发送到 RocketMQ，供下游消费。
+参考文章和当前项目都经过 Canal Server 读取并转换 MySQL Binlog，再将消息发送到 RocketMQ，供下游消费。
 
 **不同点：**
 
@@ -107,9 +103,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **相同点：**
 
-**参考文章：** 不能仅凭消息进入 RocketMQ 或展示写入效果，证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
-
-**当前项目：** 同样不能仅凭消息进入 RocketMQ 或展示写入效果，证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
+参考文章和当前项目都不能仅凭消息进入 RocketMQ 或展示写入效果，证明 Canal 内部批次确认、RocketMQ Broker 持久化和 ES 写入属于同一确认阶段。
 
 **不同点：**
 
@@ -132,6 +126,8 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 本轮已执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，并按 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md) 完成结构与表达复核。
 
 本轮补充了 Canal 批次获取、消息发送和提交/回滚关系的 Mermaid 泳道图；图示仍属于源码处理顺序说明，不代表运行环境已验证。
+
+本轮将对比章节中重复的相同点合并为单段，保留差异项的对象分段说明。
 
 ## 7 参考来源
 
