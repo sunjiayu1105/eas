@@ -30,6 +30,40 @@ canal.mq.flatMessage=true
 
 **FlatMessage JSON：** `data` 使用 INSERT/UPDATE 的行后列、DELETE 的行前列。UPDATE 的 `old` 根据变化列集合筛选旧列值，不是完整行前镜像；多行更新须核对实际输出。类中定义 `gtid` 字段并从 Header 赋值，但不保证每条消息都有可用 GTID；`es` 是事件执行时间，`ts` 是转换时系统时间，均不等于业务记录的原始 `create_time`。
 
+例如，同一条消费记录的三类事件可以这样理解：
+
+**INSERT：** `data` 是新插入的行，`old` 通常为空。
+
+```json
+{
+  "type": "INSERT",
+  "data": [{"consume_id": "c-1001", "amount": "10.00", "version": 1}],
+  "old": []
+}
+```
+
+**UPDATE：** `data` 是更新后的行，`old` 只列出发生变化字段的旧值。
+
+```json
+{
+  "type": "UPDATE",
+  "data": [{"consume_id": "c-1001", "amount": "12.00", "version": 2}],
+  "old": [{"amount": "10.00", "version": 1}]
+}
+```
+
+**DELETE：** `data` 保留删除前的行，用于定位和记录删除事件，`old` 通常为空。
+
+```json
+{
+  "type": "DELETE",
+  "data": [{"consume_id": "c-1001", "amount": "12.00", "version": 2}],
+  "old": []
+}
+```
+
+上面是字段含义示例，不代表当前运行实例的完整消息样例；多行 UPDATE、空值字段、未变化字段以及 `gtid`、`es`、`ts` 的实际输出仍需结合运行配置和真实消息核对。
+
 **二进制消息：** 先解码 Canal Packet/Messages，再解析 Entry 的 RowChange/RowData。Entry Header 可保留日志文件和偏移；按键分区拆行时复制原 Header，但不新增拆分前的原始行序号，不能只凭文件和偏移区分同一原始事件内的多行。
 
 **项目字段契约：** 业务主键、操作类型、原始 `create_time`、来源映射和必要业务列按用途传递。新增、更新携带同次变更的行后数据及 `version`；DELETE 保留删除前的 `consumeId`、原始 `create_time` 等定位信息。独立事件 ID是否必要仍待确认，MQ messageId、Canal batchId 和拆分后下标不能单独作为稳定源事件身份。
@@ -63,3 +97,5 @@ canal.mq.flatMessage=true
 本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；已静态核对 Canal 1.1.7 源码，未执行实际消息样例和联调。
 
 本轮根据用户确认，将当前项目消息格式设计收敛为 FlatMessage JSON；运行配置、消息样例和端到端解析仍未验证。
+
+本轮已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充并复核了 INSERT、UPDATE、DELETE 的 FlatMessage JSON 字段含义示例。
