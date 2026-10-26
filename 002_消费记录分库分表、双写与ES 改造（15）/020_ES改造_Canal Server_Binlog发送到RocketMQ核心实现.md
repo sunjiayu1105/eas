@@ -19,6 +19,39 @@ CanalMQStarter 为 destination 建立内部 MQ 生产任务，从 Server 获取�
 
 CanalMQStarter 为每个 destination 创建内部生产端，并使用内部 clientId 从嵌入式 Server 调用 `getWithoutAck` 获取待确认批次。这个 clientId 属于 Canal 内部消费游标，不是 MySQL 复制使用的 slaveId，也不是 RocketMQ 消费者身份。
 
+```mermaid
+flowchart LR
+    subgraph S1[CanalMQStarter 内部生产任务]
+        A[按 destination 创建生产任务] --> B[使用内部 clientId 调用 getWithoutAck]
+    end
+
+    subgraph S2[嵌入式 Canal Server]
+        C[读取并返回待确认批次]
+    end
+
+    subgraph S3[CanalRocketMQProducer]
+        D[接收 Canal 批次]
+        E[按 flatMessage 转换格式]
+        F[按 topic、分区数和 partitionHash 组织消息]
+        G[等待本轮分区发送任务完成]
+    end
+
+    subgraph S4[RocketMQ]
+        H[接收各分区消息]
+    end
+
+    subgraph S5[Canal 批次回调]
+        I[成功路径：callback.commit<br/>确认 Canal 批次]
+        J[异常路径：callback.rollback<br/>回滚 Canal 批次]
+    end
+
+    B --> C --> D --> E --> F --> G
+    G -->|发送完成且无异常| H --> I
+    G -->|发送异常或结果不明| J
+```
+
+图中只表示源码层面的处理顺序：`getWithoutAck` 获取批次后，生产端完成消息转换和分区发送，再进入提交或回滚回调；RocketMQ 已接收消息不会因为 Canal 批次回滚而自动撤回。实际发送状态、Broker 持久化和恢复效果仍需结合发行包及运行环境验证。
+
 ### 3.2 转换消息格式
 
 CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
@@ -97,6 +130,8 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 本文依据 Canal 1.1.7 的 [CanalMQStarter](https://github.com/alibaba/canal/blob/canal-1.1.7/server/src/main/java/com/alibaba/otter/canal/server/CanalMQStarter.java)、[CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java) 静态核对；未执行 Canal、RocketMQ 或 ES 联调。
 
 本轮已执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，并按 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md) 完成结构与表达复核。
+
+本轮补充了 Canal 批次获取、消息发送和提交/回滚关系的 Mermaid 泳道图；图示仍属于源码处理顺序说明，不代表运行环境已验证。
 
 ## 7 参考来源
 
