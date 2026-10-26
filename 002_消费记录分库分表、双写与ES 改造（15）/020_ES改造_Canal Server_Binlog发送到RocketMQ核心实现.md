@@ -11,6 +11,7 @@
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 - 两个 destination 分别使用固定 topic；两个 topic 共用同一消息契约和消费逻辑。
 - `partitionHash` 源列确定为新表的 `consume_id`；INSERT 和 UPDATE 使用变更后的值，DELETE 使用删除前的值。
+- 本文的“3 详细方案”按 Canal 初学者能够连续理解的顺序编写：先解释组件和术语，再说明读取、转换、分区发送及批次确认的处理步骤；示例代码和配置仍需与实际发行包、部署配置分别核对。
 
 ## 2 面试口述精炼版本
 
@@ -20,9 +21,22 @@ CanalMQStarter 为 destination 建立内部 MQ 生产任务，从 Server 获取�
 
 ## 3 详细方案
 
+### 3.0 先认识这条链路中的几个角色
+
+在看代码前，先把几个名称对应起来：
+
+- **Canal Server**：从 MySQL 的 Binlog 读取数据库变更，并把变更交给后续处理。
+- **destination**：Canal Server 中的一条同步通道。本项目有两个 destination，分别对应 `db0` 和 `db1`。
+- **Canal 批次**：Canal 一次读取、等待确认的一组变更事件，用 `batchId` 标识；它不是 MySQL 事务编号，也不是一条 RocketMQ 消息。
+- **CanalMQStarter**：Canal 内置的任务入口，负责从 Server 取出未确认批次。
+- **CanalRocketMQProducer**：Canal 内置的 RocketMQ 生产端，负责把批次转换成消息、选择队列并发送。
+- **topic、队列和分区**：topic 是消息主题，队列是主题下的实际消息通道，分区规则根据 `consume_id` 计算消息应该进入哪一个队列。
+
+整条链路可以先记成四步：**取批次 → 转成 FlatMessage JSON → 按 `consume_id` 选队列并发送 → 根据发送结果确认或回滚 Canal 批次**。本章只展开这四步，Entry 字段定义见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)，发布后的确认边界见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
+
 ### 3.1 获取 Canal 批次
 
-CanalMQStarter 为每个 destination 创建内部生产端，并使用内部 clientId 从嵌入式 Server 调用 `getWithoutAck` 获取待确认批次。这个 clientId 属于 Canal 内部消费游标，不是 MySQL 复制使用的 slaveId，也不是 RocketMQ 消费者身份。
+第一步是取数据。CanalMQStarter 为每个 destination 创建一个内部生产任务，使用内部 `clientId` 调用 `getWithoutAck`，从嵌入式 Canal Server 取出一批“尚未确认”的变更。`getWithoutAck` 的含义是“先取出来处理，处理成功后再确认”；这个 `clientId` 是 Canal 内部消费游标，不是 MySQL 复制使用的 `slaveId`，也不是 RocketMQ 消费者身份。
 
 ```mermaid
 flowchart LR
@@ -55,11 +69,11 @@ flowchart LR
     G -->|发送异常或结果不明| J
 ```
 
-图中只表示源码层面的处理顺序：`getWithoutAck` 获取批次后，生产端完成消息转换和分区发送，再进入提交或回滚回调；RocketMQ 已接收消息不会因为 Canal 批次回滚而自动撤回。实际发送状态、Broker 持久化和恢复效果仍需结合发行包及运行环境验证。
+图中只表示源码层面的处理顺序：先取批次，再转换消息和发送，最后进入提交或回滚回调。这里的“提交”只是确认 Canal 已经处理这个批次；RocketMQ 已接收的消息不会因为 Canal 回滚而自动撤回。实际发送状态、Broker 持久化和恢复效果仍需结合发行包及运行环境验证。
 
 ### 3.2 转换消息格式
 
-Canal FlatMessage JSON 是 Canal Server 将 MySQL Binlog 事件转换成的 JSON 消息格式，供 RocketMQ 消费端按字段解析。`type` 表示事件类型，`data` 表示变更后的数据，`old` 表示 UPDATE 时发生变化的旧字段值；具体字段是否完整输出，仍需以实际运行配置和消息样例为准。
+第二步是转消息。Canal FlatMessage JSON 可以理解为 Canal Server 为下游准备的一种 JSON 外壳：它把 Binlog 事件中的库表、操作类型和行数据整理成字段，RocketMQ 消费端收到后可以直接按 JSON 解析。`type` 表示事件类型，`data` 表示变更后的数据，`old` 表示 UPDATE 时发生变化的旧字段值；具体字段是否完整输出，仍需以实际运行配置和消息样例为准。
 
 CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
@@ -70,19 +84,19 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 ### 3.3 分区和消息发送
 
-每个 destination 使用独立且稳定的 topic；两个 topic 共用同一消息契约和消费逻辑。生产端根据对应 topic、分区数和 `partitionHash` 计算目标队列，其中 `partitionHash` 使用新表的 `consume_id`：INSERT 和 UPDATE 取变更后的值，DELETE 取删除前的值。启用按键分区时，源码可能按行重建 Entry 或重新组织 FlatMessage；同一源记录的路由稳定性仍取决于真实哈希配置和队列映射，不能直接套用参考文章的固定分区数。
+第三步是选队列并发送。每个 destination 使用自己的固定 topic，但两个 topic 共用同一消息契约和消费逻辑。生产端把 `partitionHash` 理解为“用哪个字段计算队列”，本项目使用新表的 `consume_id`：INSERT 和 UPDATE 取变更后的值，DELETE 取删除前的值。计算结果再结合分区数和 topic 的队列列表选择目标队列；分区数和队列映射尚未确认，不能直接套用参考文章的固定值。
 
 每个分区形成一个待发送消息或消息集合，生产端调用 RocketMQ Producer 的同步发送方法，并等待本轮分区发送任务结束。部分分区已成功、其他分区失败时，进入 MQ 的消息不会因 Canal 回滚而自动撤回，后续可能重复发送。
 
 ### 3.4 提交、回滚与发送状态
 
-无异常完成本轮发送后，回调提交 Canal 内部批次；发生异常时，回调回滚内部批次。提交只表示 Canal 内部批次确认，不等于 ES 已写入，也不等于所有消息已经完成下游消费。
+第四步是确认批次。生产端等待本轮发送任务结束后，正常路径调用提交回调，异常路径调用回滚回调。提交只表示 Canal 内部批次确认，不等于 ES 已写入，也不等于所有消息已经完成下游消费。
 
 源码路径会取得 RocketMQ `SendResult`，但当前核对到的发送分支主要依赖异常判断和日志记录，是否显式处置 `getSendStatus() != SEND_OK` 需要结合实际发行包进一步验证。因此不能把回调直接表述为“所有消息已可靠落盘”。
 
 ### 3.5 核心配置示例
 
-下面只列出理解这条链路所需的核心配置。`<destination_topic>`、`<namesrv_addr>` 和 `<db_name>` 是占位符，实际 topic、NameServer 地址和库名需要按两个 destination 的部署配置分别填写；分区数暂不填写，避免把未确认的部署参数写成既定事实。
+理解配置时可以先分成两层：`canal.properties` 是整个 Canal Server 共用的配置，`conf/<destination>/instance.properties` 是某一条同步通道自己的配置。下面只列出理解这条链路所需的核心配置。`<destination_topic>`、`<namesrv_addr>` 和 `<db_name>` 是占位符，实际 topic、NameServer 地址和库名需要按两个 destination 的部署配置分别填写；分区数暂不填写，避免把未确认的部署参数写成既定事实。
 
 ```properties
 # conf/canal.properties：Canal Server 全局 MQ 配置
@@ -117,7 +131,7 @@ canal.mq.partitionHash = <db_name>.<table_name>:consume_id
 
 ### 3.6 核心代码示例
 
-下面代码是依据 Canal 1.1.7 源码整理的核心片段，并补充了说明性注释；它用于解释处理边界，不是当前项目新增的可直接编译源码。
+下面代码按照前面四步链路排列：先取批次，再注册成功/失败回调，最后转换并发送消息。代码是依据 Canal 1.1.7 源码整理的核心片段，并补充了说明性注释；它用于解释处理边界，不是当前项目新增的可直接编译源码。
 
 ```java
 // CanalMQStarter：每个 destination 启动一个内部 MQ 生产任务
@@ -214,23 +228,7 @@ waitForPartitionTasks();
 
 ## 6 复核记录
 
-本文依据 Canal 1.1.7 的 [CanalMQStarter](https://github.com/alibaba/canal/blob/canal-1.1.7/server/src/main/java/com/alibaba/otter/canal/server/CanalMQStarter.java)、[CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java) 静态核对；未执行 Canal、RocketMQ 或 ES 联调。
-
-本轮已执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，并按 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md) 完成结构与表达复核。
-
-本轮补充了 Canal 批次获取、消息发送和提交/回滚关系的 Mermaid 泳道图；图示仍属于源码处理顺序说明，不代表运行环境已验证。
-
-本轮将对比章节中重复的相同点合并为单段，保留差异项的对象分段说明。
-
-本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，修正了事务边界文档链接文字与当前文件编号不一致的问题；剩余内容仅保留待确认或待验证事项。
-
-本轮根据用户确认，将消息格式从“JSON 或二进制待选”收敛为 FlatMessage JSON 设计；未将运行时配置、真实消息样例或端到端消费结果写成已验证事实。
-
-本轮补充了 Canal/RocketMQ 核心配置示例和依据 Canal 1.1.7 源码整理的批次获取、分区发送、等待结果及提交/回滚代码片段；示例中的占位符、注释和代码均不代表当前部署值或新增可编译实现，未执行 Canal、RocketMQ 或 ES 联调。
-
-本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，复核了新增配置、代码注释、口述版与详细方案的一致性；剩余问题仅涉及实际配置、发行包行为和运行联调验证。
-
-本轮再次复核消息格式表述，明确当前项目只采用 FlatMessage JSON；源码中的二进制分支仅作为 1.1.7 的实现边界保留，不再作为项目方案选项。
+本轮按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 复核了面向 Canal 初学者的讲解顺序，新增角色说明和“四步链路”概览，并在配置与代码前补充了阅读提示。技术结论、来源和未验证边界未改变；未执行 Canal、RocketMQ 或 ES 联调。
 
 ## 7 参考来源
 
