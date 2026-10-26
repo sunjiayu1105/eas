@@ -88,7 +88,7 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 **不同点：**
 
-**参考文章：** 展示了 NameServer、Broker 和 Dashboard 等 RocketMQ 实验环境组件，并给出消息进入 RocketMQ 的效果。
+**参考文章：** 展示了 NameServer、Broker 和 Dashboard 等 RocketMQ 实验环境组件，并展示消息发送到 RocketMQ 后的示例结果。
 
 **当前项目：** 使用 Canal Server 内置 RocketMQ 生产端，规划连接 RocketMQ Broker `5.2.0`；Broker 的实际部署实例数量和管理组件仍待确认。
 
