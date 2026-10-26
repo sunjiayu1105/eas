@@ -92,6 +92,8 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 源码路径会取得 RocketMQ `SendResult`，但当前核对到的发送分支主要依赖异常判断和日志记录，是否显式处置 `getSendStatus() != SEND_OK` 需要结合实际发行包进一步验证。因此不能把回调直接表述为“所有消息已可靠落盘”。
 
+这会带来重复消息风险：一个 Canal 批次拆成多个分区消息后，部分消息可能已经进入 RocketMQ，其他分区却发送失败；Canal 回滚时不会自动撤回已经进入 RocketMQ 的消息，后续重试同一批次时，之前成功的消息可能再次发送。这个过程属于至少一次投递风险。下游消费端需要使用稳定的业务主键、业务版本或事件身份做幂等处理，避免重复写入 ES；重复消息是否最终造成重复业务数据，取决于消费端的幂等实现。
+
 ### 3.6 核心配置示例
 
 理解配置时可以先分成两层：`canal.properties` 是整个 Canal Server 共用的配置，`conf/<destination>/instance.properties` 是某一条同步通道自己的配置。下面只列出理解这条链路所需的核心配置。`<destination_topic>`、`<namesrv_addr>` 和 `<db_name>` 是占位符，实际 topic、NameServer 地址和库名需要按两个 destination 的部署配置分别填写；分区数暂不填写，避免把未确认的部署参数写成既定事实。
