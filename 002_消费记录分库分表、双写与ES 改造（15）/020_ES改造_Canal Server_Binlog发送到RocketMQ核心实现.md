@@ -4,7 +4,7 @@
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；事务边界、提交与回滚影响见 [021 RocketMQ消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)。
+- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；发布结果、Canal 批次提交与回滚影响见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
 - 当前项目采用 Canal Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件；本文描述的是 Canal 1.1.7 源码路径，未表示实际发行包已部署或验证。
 - Canal 1.1.7 官方构建资料声明使用 RocketMQ 客户端 `4.8.0`；该结论用于记录官方构建口径，不据此断言当前运行实例的 JAR 已加载。
 - 当前项目规划使用 RocketMQ Broker `5.2.0`；这是已确认的设计选择，实际部署和兼容性仍需验证。
@@ -16,7 +16,7 @@
 
 **Canal Server 负责读取批次并发送消息**
 
-CanalMQStarter 为 destination 建立内部 MQ 生产任务，从 Server 获取未确认批次；CanalRocketMQProducer 再按 `flatMessage` 配置转换为 JSON 或二进制消息，按分区规则拆分并调用 RocketMQ Producer 发送。所有分区发送任务完成后，成功路径提交 Canal 批次，异常路径回滚；但 `SendResult` 的非 `SEND_OK` 处理仍需核验。
+CanalMQStarter 为 destination 建立内部 MQ 生产任务，从 Server 获取未确认批次；CanalRocketMQProducer 按项目确认的 FlatMessage JSON 方案转换消息，再按分区规则拆分并调用 RocketMQ Producer 发送。所有分区发送任务完成后，成功路径提交 Canal 批次，异常路径回滚；但 `SendResult` 的非 `SEND_OK` 处理仍需核验。
 
 ## 3 详细方案
 
@@ -80,6 +80,92 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 
 源码路径会取得 RocketMQ `SendResult`，但当前核对到的发送分支主要依赖异常判断和日志记录，是否显式处置 `getSendStatus() != SEND_OK` 需要结合实际发行包进一步验证。因此不能把回调直接表述为“所有消息已可靠落盘”。
 
+### 3.5 核心配置示例
+
+下面只列出理解这条链路所需的核心配置。`<destination_topic>`、`<namesrv_addr>` 和 `<db_name>` 是占位符，实际 topic、NameServer 地址和库名需要按两个 destination 的部署配置分别填写；分区数暂不填写，避免把未确认的部署参数写成既定事实。
+
+```properties
+# conf/canal.properties：Canal Server 全局 MQ 配置
+canal.serverMode = tcp                         # Server 对外提供 Canal 协议；内置 MQ 生产任务仍由 Server 创建
+canal.destinations = <destination_a>,<destination_b> # 两个 destination 分别建立生产任务
+canal.mq.flatMessage = true                    # 发送 FlatMessage JSON；实际运行加载结果仍需验证
+canal.mq.canalBatchSize = 50                   # 每次 getWithoutAck 的批次数量示例，按部署容量调整
+canal.mq.canalGetTimeout = 100                 # 获取批次的等待时间示例，单位毫秒
+canal.mq.send.thread.size = 30                 # MQ 发送任务线程数示例
+canal.mq.build.thread.size = 8                 # 消息构造线程数示例
+
+# RocketMQ 连接参数；这里的值只表达配置位置和作用，不代表当前环境值
+rocketmq.producer.group = <producer_group>
+rocketmq.namesrv.addr = <namesrv_addr>
+rocketmq.retry.times.when.send.failed = 0      # Canal 模板示例值；是否采用需结合可靠性方案确认
+rocketmq.vip.channel.enabled = false
+```
+
+每个 destination 的 `conf/<destination>/instance.properties` 还需要单独配置 topic 和分区路由：
+
+```properties
+# destination A 和 destination B 分别维护各自的 instance.properties
+canal.mq.topic = <destination_topic>           # 当前 destination 的固定 topic
+canal.mq.partition = 0                         # 未启用按键分区时使用的默认队列下标示例
+canal.mq.partitionHash = <db_name>.<table_name>:consume_id
+                                                # 按新表 consume_id 路由；实际表名需替换
+# canal.mq.partitionsNum = <confirmed_partition_count>
+# 分区数尚未确认，确认后再取消注释并填写实际值
+```
+
+`canal.mq.partitionHash` 的语法和 `canal.mq.flatMessage` 等配置项来自 Canal 1.1.7 模板；上述 topic、表名和分区数仍是项目部署参数，不能仅凭模板确认。两个 destination 应分别填写固定 topic，但继续共用同一消息契约和消费逻辑。
+
+### 3.6 核心代码示例
+
+下面代码是依据 Canal 1.1.7 源码整理的核心片段，并补充了说明性注释；它用于解释处理边界，不是当前项目新增的可直接编译源码。
+
+```java
+// CanalMQStarter：每个 destination 启动一个内部 MQ 生产任务
+Message message = canalServer.getWithoutAck(
+    clientIdentity, batchSize, timeout, TimeUnit.MILLISECONDS);
+
+long batchId = message.getId();
+if (batchId != -1 && hasEntries(message)) {
+    canalMQProducer.send(destination, message, new Callback() {
+        @Override
+        public void commit() {
+            // 只有生产端回调成功路径才确认 Canal 批次游标
+            canalServer.ack(clientIdentity, batchId);
+        }
+
+        @Override
+        public void rollback() {
+            // 发送异常时回滚 Canal 批次；已经进入 RocketMQ 的消息不会被自动撤回
+            canalServer.rollback(clientIdentity, batchId);
+        }
+    });
+}
+```
+
+```java
+// CanalRocketMQProducer：发送入口等待本轮分区任务结束，再触发批次回调
+try {
+    sendByTopicAndPartition(destination, message);
+    // waitForResult() 返回表示分区发送任务已结束；
+    // SendResult 的非 SEND_OK 状态是否被单独判失败，仍需结合实际发行包核验
+    callback.commit();
+} catch (Throwable ex) {
+    callback.rollback();
+}
+
+// FlatMessage JSON 分区发送的核心逻辑（示意）
+List<FlatMessage> flatMessages = MQMessageUtils.messageConverter(rows, message.getId());
+for (FlatMessage flatMessage : flatMessages) {
+    // partitionHash=consume_id；INSERT/UPDATE 取变更后值，DELETE 取删除前值
+    FlatMessage[] partitions = MQMessageUtils.messagePartition(
+        flatMessage, partitionCount, "consume_id", databaseHash);
+    submitPartitionTasks(partitions);
+}
+waitForPartitionTasks();
+```
+
+源码中的单条发送会根据分区下标选择 RocketMQ `MessageQueue`；当分区下标大于队列数量时使用取模。批量发送会优先读取 topic 的队列列表，队列信息不可用时退化为逐条发送。这里的代码和配置只说明源码处理方式，未证明当前部署的队列列表、发送结果或恢复行为已经验证。
+
 ## 4 参考文章与项目设计的对比
 
 ### 4.1 投递组件与部署范围
@@ -139,6 +225,10 @@ CanalRocketMQProducer 按 `canal.mq.flatMessage` 选择转换路径：
 本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，修正了事务边界文档链接文字与当前文件编号不一致的问题；剩余内容仅保留待确认或待验证事项。
 
 本轮根据用户确认，将消息格式从“JSON 或二进制待选”收敛为 FlatMessage JSON 设计；未将运行时配置、真实消息样例或端到端消费结果写成已验证事实。
+
+本轮补充了 Canal/RocketMQ 核心配置示例和依据 Canal 1.1.7 源码整理的批次获取、分区发送、等待结果及提交/回滚代码片段；示例中的占位符、注释和代码均不代表当前部署值或新增可编译实现，未执行 Canal、RocketMQ 或 ES 联调。
+
+本轮再次执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md)，复核了新增配置、代码注释、口述版与详细方案的一致性；剩余问题仅涉及实际配置、发行包行为和运行联调验证。
 
 ## 7 参考来源
 

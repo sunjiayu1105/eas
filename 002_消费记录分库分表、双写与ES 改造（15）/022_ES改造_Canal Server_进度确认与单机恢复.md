@@ -4,7 +4,7 @@
 
 ## 1 适用规则
 
-本页沿用 Canal Server 原总览（原文档已删除，依据待补充） 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。
+本页沿用 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>) 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。
 
 
 ## 2 面试口述精炼版本
@@ -15,15 +15,15 @@
 
 ## 3 详细方案
 
-### 5. 本地位点与单机恢复
+### 3.1 本地位点与单机恢复
 
-#### 5.1 本地持久化进度
+#### 3.1.1 本地持久化进度
 
 本文采用 `file-instance.xml` 本地位点模板，按 destination 分别保存可恢复进度。原生生产端的提交回调通过内部 `ack` 更新消费游标，本地元数据落盘是另一个阶段；读取位置、内存游标和本地持久化游标不能混为一谈。具体文件路径、刷新时机与 destination/clientId 的对应关系须按 Canal 1.1.7 实际发行包核验。
 
 发送状态风险见 4.3。消息已进入 MQ、ES 已写入或本地文件存在，都不能单独证明 Canal 已可靠保存恢复进度；故障前已处理但尚未落盘的部分可能重放，具体范围需联调验证，下游必须处理重复和旧事件。
 
-#### 5.2 人工重启恢复
+#### 3.1.2 人工重启恢复
 
 单机部署没有备用节点自动接管。Server 进程故障时，db0、db1 的采集和发布都会中断；MQ 中已有消息能否继续被下游消费，须另行核对 RocketMQ 和 ES 写入服务状态。恢复的预期流程如下：
 
@@ -33,11 +33,11 @@
 4. 人工重启 Server，从各通道可核对的进度继续读取，并恢复原生 RocketMQ 发布；首次 GTID 基线只用于首次初始化，不能覆盖已有进度。
 5. 核对两个通道的发布恢复、MQ 积压追赶和 ES 实际结果，下游按稳定来源版本与原物理索引处理重复和旧事件，独立事件去重按需采用。
 
-#### 5.3 主机与文件故障边界
+#### 3.1.3 主机与文件故障边界
 
 本地位点依赖保存文件的主机和存储。主机或磁盘故障导致位点不可读时，需要先核对能否恢复原进度及必要元数据；不能在另一台主机直接按最新 GTID 启动，也不能默认退回导入前基线。备份、文件恢复和人工迁移步骤仍需实现依据与演练，当前方案不承诺自动切换、零中断或零丢失。
 
-### 6. 监控与异常边界
+### 3.2 监控与异常边界
 
 建议监控单机 Server 及 db0、db1 两个通道：
 
@@ -50,7 +50,7 @@
 
 日志记录不等于告警已送达，进程启动成功也不等于位点已经连续恢复。涉及本地位点丢失或损坏、binlog 过期、消息格式异常或持续投递失败时，应暂停对应 destination 并人工处理。
 
-### 7. Server 侧验收
+### 3.3 Server 侧验收
 
 验收范围包括：
 
@@ -63,7 +63,7 @@
 
 上述内容是待执行验收要求，不代表当前环境已经部署或测试通过。
 
-### 8. 版本核对依据与边界
+### 3.4 版本核对依据与边界
 
 - [Canal 1.1.7 canal.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/canal.properties)及 [instance.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/example/instance.properties)：已静态核对配置键、GTID 属性和默认 `file-instance.xml` 入口；[file-instance.xml](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/spring/file-instance.xml) 的本地落盘与恢复行为仍须按实际发行包核验。
 - [Canal 1.1.7 Message](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/Message.java)、[CanalEntry](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/CanalEntry.java)及 [MysqlEventParser](https://github.com/alibaba/canal/blob/canal-1.1.7/parse/src/main/java/com/alibaba/otter/canal/parse/inbound/mysql/MysqlEventParser.java)：消息模型、行事件解析和 slaveId 生成路径；原生 RocketMQ 生产路径仍需结合发行包核验。
@@ -73,7 +73,7 @@
 
 以上为已有官方版本源码的静态核对及待核验模板入口，未验证实际发行包、依赖树、MySQL 8.0.33 认证、本地位点落盘或单机重启恢复。
 
-## 进度与增量校验边界
+## 4 进度与增量校验边界
 
 需要分别记录以下进度，不能用其中一类替代另一类：
 
@@ -90,5 +90,5 @@
 
 ## 5 关联文档
 
-- [RocketMQ 消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)
+- [RocketMQ 发布与 Canal 批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)
 - [增量校验流程与差异处理](<./045_ES改造_ES_增量校验流程与差异处理.md>)

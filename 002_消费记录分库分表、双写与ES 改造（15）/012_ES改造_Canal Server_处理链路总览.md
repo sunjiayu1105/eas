@@ -1,8 +1,8 @@
-# 012_ES改造_Canal Server_整体实现
+# 012_ES改造_Canal Server_处理链路总览
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
-本文是 Canal Server 写入链路的总览，详细口述版本、实现依据、参考文章对比和待验证事项已按独立考点拆分到下列 10 个文档。每个拆分文档只回答一个明确问题，设计、实现和验证状态继续分别说明。
+本文只负责说明 Canal Server 从源库读取 Binlog 到 RocketMQ 发布、批次确认和单机恢复的整体链路。具体实现、配置和边界分别放在下列专题文档中；本页不重复展开各专题的代码和待验证细节。
 
 ## 1 总体处理链路
 
@@ -22,9 +22,9 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 
 - [destination 过滤与分区路由](<./015_ES改造_Canal Server_destination过滤与分区路由.md>)
 
-### 4. 日志读取与变更解析
+### 4. Binlog 读取与过滤范围
 
-- [日志读取与变更解析](<./016_ES改造_Canal Server_日志读取与变更解析.md>)
+- [Binlog 读取与过滤范围](<./016_ES改造_Canal Server_Binlog读取与过滤范围.md>)
 
 ### 5. Binlog 读取与 Entry 解析
 
@@ -42,9 +42,9 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 
 - [Binlog 发送到 RocketMQ 核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)
 
-### 9. RocketMQ 消息发布与事务边界
+### 9. RocketMQ 发布与 Canal 批次确认
 
-- [RocketMQ 消息发布与事务边界](<./021_ES改造_Canal Server_RocketMQ消息发布与事务边界.md>)
+- [RocketMQ 发布与 Canal 批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)
 
 ### 10. 进度确认与单机恢复
 
@@ -52,3 +52,7 @@ Canal Server 单机进程加载两个 destination，分别连接 db0、db1 的 M
 ## 3 拆分边界与验证说明
 
 拆分只调整文档组织，不改变已确认的 Canal Server 1.1.7、MySQL 8.0.33、RocketMQ 和单机部署设计。每个文档的运行效果、发行包行为、位点落盘、消息可靠性和故障恢复仍以原待验证事项为准；本次未执行 Canal、MySQL、RocketMQ 或 Elasticsearch 联调。
+
+## 4 本轮梳理记录
+
+本轮按“部署拓扑→公共配置→destination 读取与过滤→Entry 解析→消息格式→事务与特殊事件→RocketMQ 发送→批次确认→单机恢复”的处理顺序重新划分 012～022 的职责，移除了重复的读取、格式和发布说明，并同步修正了文档名称、章节编号和交叉链接。该结构调整属于文档整理，不代表相关功能已经实现或验证。

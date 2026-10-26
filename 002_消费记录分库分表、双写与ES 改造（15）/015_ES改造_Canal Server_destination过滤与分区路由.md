@@ -4,37 +4,30 @@
 
 ## 1 适用规则
 
-沿用 Canal Server 原总览（原文档已删除，依据待补充） 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
+沿用 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
 
 ## 2 面试口述精炼版本
 
-每个 destination（同步通道）分别配置源库连接、表过滤、GTID 起点、固定 topic 和消息路由；两个 topic 共用同一消息契约和消费逻辑。首次使用导入前事务标识基线，后续按已保存进度接续；按 `consume_id` 选择队列，但同键入队不等于并发消费按顺序完成。过滤范围和队列映射仍待验证。
+每个 destination（同步通道）分别配置固定 topic 和消息路由；源库连接、表过滤和 GTID 起点见 [Binlog读取与过滤范围](<./016_ES改造_Canal Server_Binlog读取与过滤范围.md>)。两个 topic 共用同一消息契约和消费逻辑。按 `consume_id` 选择队列，但同键入队不等于并发消费按顺序完成。分区数和队列映射仍待验证。
 
 ## 3 详细方案
 
 ### 3.1 destination 配置示意
 
 ~~~properties
-canal.instance.master.address=<mysql-db0>:3306
-canal.instance.dbUsername=<canal-user>
-canal.instance.dbPassword=<managed-secret>
-canal.instance.filter.regex=eas\\.consume_record_(0[1-9]|1[0-6])
-canal.instance.gtidon=true
-canal.instance.master.gtid=<db0-import-before-gtid>
+# source connection, GTID and filter settings are documented in 016
 canal.mq.topic=<db0-topic>
 canal.mq.partitionHash=eas\\.consume_record_(0[1-9]|1[0-6]):consume_id
 canal.mq.partitionsNum=<positive-partition-count>
 ~~~
 
-db1 使用自己的 MySQL 地址和导入前完整 GTID 集合；不能复制 db0 的 GTID。同一个 Server 分别加载两个 destination 的配置，并核对自动生成的复制身份不与源 MySQL 或同一复制拓扑中的其他复制客户端冲突；如改用手工值，应在同一复制拓扑内规划不同身份。`slaveId` 是 Canal 复制客户端使用的 server-id，区别于源 MySQL 实例自身的 `server-id`；它也不是 destination 名称或 MQ 内部 clientId。
-
-Java properties 文件中的 `\\.` 解析后是正则的 `\.`。上述库表过滤候选须分别验证 01、09、10、16 命中，00、17 和其他表不命中。1.1.7 原生 MQ 工作线程使用空过滤表达式订阅嵌入式 Server，本文的表范围由 Server 侧过滤配置限定；不额外配置独立 TCP 客户端的订阅过滤。导入前 GTID 仅用于首次初始化，不能以编辑 instance.properties 的方式覆盖已有检查点或跳过异常。
+两个 destination 分别填写自己的固定 topic；topic、字段值、分区数和队列列表稳定，才可核对同键是否始终到同一队列。源库地址、GTID、过滤正则和复制身份由 016 统一说明，本文不重复展开。
 
 ### 3.2 消息分区与来源顺序
 
 消费端候选 `orderKey` 为 `destination + database + table + consumeId`，用于内部顺序状态；它不是原生生产端直接拼接的 hash 字符串。1.1.7 的 `partitionHash` 按库表规则匹配源列，DELETE 使用删除前列，INSERT/UPDATE 使用变更后列；开启 `canal.mq.database.hash` 时还混入库名。topic、字段值、分区数和队列列表稳定，才可核对同键是否始终到同一队列。消费端采用 `CONCURRENTLY`（并发消费），单次回调仍同步等待当前消息内的 ES 结果；同键消息可能并发或乱序完成，由 ES 按来源版本拒绝旧写入。Tag 只做过滤。
 
-上面的正则覆盖 16 张表，旧示例只配置 `consume_record_01` 会让未匹配表走默认分区。当前设计已确定使用 MySQL 源列 `consume_id`，INSERT、UPDATE 取变更后值，DELETE 取删除前值；仍须核对三类事件均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
+当前设计已确定使用 MySQL 源列 `consume_id`，INSERT、UPDATE 取变更后值，DELETE 取删除前值；仍须核对三类事件均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
 
 同一 destination 同时只启动一个 Server 读取和发布，不能在旧进程仍运行时另起重复进程。原生生产端的队列映射、topic 队列数量、重试和重启恢复都需验证路由与来源信息保持稳定。重放或并发处理时，消费端仍须携带稳定来源版本拒绝旧写入；业务版本只比较同一记录的新旧，记录迁移时须保持版本连续性。
 
