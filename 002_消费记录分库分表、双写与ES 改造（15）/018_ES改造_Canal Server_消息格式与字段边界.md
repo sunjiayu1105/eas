@@ -7,16 +7,27 @@
 - 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)，事务边界见 [事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
+- 本文按 Canal 初学者能够连续理解的顺序编写：先说明消息在 Canal 链路中的位置，再说明格式开关、字段含义、拆分对应关系和项目字段契约。
 
 ## 2 面试口述精炼版本
 
-**区分 JSON 和二进制消息**
+先把消息链路串起来：Canal 从 MySQL binlog 读取变更，先解析成 Entry，再把行事件转换成下游可以接收的消息。本文重点说明转换后的消息格式和字段边界；Binlog 读取与 Entry 解析见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)。
 
-`FlatMessage` 是扁平 JSON：新增、更新从 `data` 取行后值，DELETE 从 `data` 取行前值，UPDATE 的 `old` 按变化列筛选且不是完整前镜像。二进制消息要先解码 Packet/Messages，再解析 Entry，不能把 JSON 当二进制解析。项目新增、更新还要核对业务 `version` 与数据是否始终配对；字段完整性和拆行结果仍待消息样例验证。
+**先区分输入和输出**
+
+Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出可以是 FlatMessage JSON。二进制消息要先解码 Packet/Messages，再解析 Entry，不能把 JSON 当二进制解析。
+
+**再理解 FlatMessage 字段**
+
+`FlatMessage` 是扁平 JSON：新增、更新从 `data` 取行后值，DELETE 从 `data` 取行前值，UPDATE 的 `old` 按变化列筛选且不是完整前镜像。项目新增、更新还要核对业务 `version` 与数据是否始终配对；字段完整性和拆行结果仍待消息样例验证。
 
 ## 3 详细方案
 
-### 3.1 配置文件与格式开关
+### 3.1 先建立消息链路概念
+
+可以按“Binlog 事件 → Canal Entry → FlatMessage JSON → RocketMQ 消费端”的顺序理解本章。Binlog 事件先由 Canal 解析成 Entry 和 RowData；消息转换阶段再根据事件类型组织 `data`、`old` 等字段；RocketMQ 消费端最后按 JSON 读取这些字段。本文只展开中间的消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+
+### 3.2 配置文件与格式开关
 
 以下示例写在 Canal Server 解压目录下的全局配置文件 `conf/canal.properties` 中。当前项目设计要求 `canal.mq.flatMessage=true`；实际运行实例是否加载该值，以及消费端是否按约定解析，仍须核对。
 
@@ -26,7 +37,7 @@ canal.mq.flatMessage=true
 
 依据：[Canal 1.1.7 canal.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/canal.properties) 和 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java)。源码静态核对不等于实际发行包使用该配置。
 
-### 3.2 字段与转换边界
+### 3.3 字段与转换边界
 
 **FlatMessage JSON：** `data` 使用 INSERT/UPDATE 的行后列、DELETE 的行前列。UPDATE 的 `old` 根据变化列集合筛选旧列值，不是完整行前镜像；多行更新须核对实际输出。类中定义 `gtid` 字段并从 Header 赋值，但不保证每条消息都有可用 GTID；`es` 是事件执行时间，`ts` 是转换时系统时间，均不等于业务记录的原始 `create_time`。
 
@@ -68,7 +79,7 @@ canal.mq.flatMessage=true
 
 **项目字段契约：** 业务主键、操作类型、原始 `create_time`、来源映射和必要业务列按用途传递。新增、更新携带同次变更的行后数据及 `version`；DELETE 保留删除前的 `consume_id`（业务代码中可映射为 `consumeId`）、原始 `create_time` 等定位信息。独立事件 ID是否必要仍待确认，MQ messageId、Canal batchId 和拆分后下标不能单独作为稳定源事件身份。
 
-### 3.3 拆分后的对应关系
+### 3.4 拆分后的对应关系
 
 分区代码按 `data` 中的行计算分区，并用同一下标取对应的 `old`；二进制按键分区复制对应 RowData 后重新分组。源码体现了配对方式，但项目仍须验证多行更新、空值、列集合和业务版本在拆分后的对应关系。
 
@@ -99,3 +110,5 @@ canal.mq.flatMessage=true
 本轮根据用户确认，将当前项目消息格式设计收敛为 FlatMessage JSON；运行配置、消息样例和端到端解析仍未验证。
 
 本轮已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充并复核了 INSERT、UPDATE、DELETE 的 FlatMessage JSON 字段含义示例。
+
+本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，按 Canal 初学者的连续理解顺序调整了口述版和详细方案，并将该编写规则记录到“已确认规则”。
