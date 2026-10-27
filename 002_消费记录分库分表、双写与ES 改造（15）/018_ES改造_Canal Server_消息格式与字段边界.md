@@ -28,6 +28,8 @@ FlatMessage 是 Canal 的 Java 消息对象；FlatMessage JSON 是它序列化�
 
 ### 3.2 字段含义
 
+**顶层字段：** 下表列出的都是 Canal `FlatMessage` 定义的字段，序列化后位于 JSON 对象的最外层，用来描述消息来源、操作类型和行数据，例如 `database`、`table`、`type`、`data`、`old`。
+
 | 字段 | 含义与读取方式 |
 | --- | --- |
 | id | Canal 批次标识；多个转换或拆分对象可能共享它，不能单独用于事件去重 |
@@ -44,7 +46,11 @@ FlatMessage 是 Canal 的 Java 消息对象；FlatMessage JSON 是它序列化�
 | sql | 事件 SQL 信息，可能为空；不保证有原始 DML SQL |
 | gtid | 来源 Header 中的 GTID；可能为空，不保证每条可用 |
 
-源码中的 `data`、`old` 是 `List<Map<String,String>>`：非空列值通常以字符串输出，SQL NULL 对应 JSON null。消费端需按业务类型转换 version 等字段，不能按字符串字典序比较版本。consume_id、status、version、create_time 是行内的业务列，不是 FlatMessage 固定顶层字段；es、ts 都不能代替原始 create_time。
+**行内业务字段：** `data`、`old` 中的行对象使用源表列名作为字段名，例如 `consume_id`、`status`、`version`、`create_time`。这些字段由源表结构和本次事件提供的列决定，不属于 FlatMessage 固定定义的顶层字段。顶层的 `es`、`ts` 都不能代替行内原始 `create_time`。
+
+**字段值与示例边界：** 定义了字段，不代表每条消息中都有有效值。例如 `old` 主要用于 UPDATE 的变化列旧值，`gtid` 可能为空；文档中的精简 JSON 示例也可能省略部分顶层字段，不能据此判断实际消息没有这些字段。
+
+**行值类型：** 源码中的 `data`、`old` 是 `List<Map<String,String>>`：非空列值通常以字符串输出，SQL NULL 对应 JSON null。消费端需按业务类型转换 `version` 等字段，不能按字符串字典序比较版本。
 
 ### 3.3 一条消息包含三行 UPDATE 的示例
 
