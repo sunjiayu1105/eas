@@ -22,6 +22,27 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 `FlatMessage` 是扁平 JSON：新增、更新从 `data` 取行后值，DELETE 从 `data` 取行前值，UPDATE 的 `old` 按变化列筛选且不是完整前镜像。项目新增、更新还要核对业务 `version` 与数据是否始终配对；字段完整性和拆行结果仍待消息样例验证。
 
+**RocketMQ 消费端最终收到什么**
+
+消费端从 RocketMQ `Message` 的 body 中读取字节，再按项目约定解码成字符串并解析 JSON。当前项目设计和 Canal 生产端源码的静态结论是：一个 RocketMQ 消息体对应一个 FlatMessage JSON 对象，不是多个 JSON 文本直接拼接，也不是一个外层 JSON 数组包着多个 FlatMessage。实际字符集、运行配置和真实 body 仍需通过部署实例核对。
+
+FlatMessage JSON 可以包含多条行变更。多条行变更放在同一个 `data` 数组中，例如一个 UPDATE FlatMessage 可以同时包含 `c-1002` 和 `c-1004` 两行；如果分区结果不同，生产端可能把它们拆到多条 RocketMQ 消息中，每条消息仍分别包含一个 FlatMessage JSON。RocketMQ Broker 不会把 `data` 数组自动拆成多条业务消息，也不会把多个 FlatMessage 自动合并成一条消息。
+
+消费端重点读取的字段如下：
+
+- `type`：变更类型，常见值为 `INSERT`、`UPDATE`、`DELETE`；消费端据此选择新增、更新或删除事件处理分支。
+- `data`：行数据。INSERT、UPDATE 使用变更后的行；DELETE 使用删除前的行。数组中的每个元素代表一条行变更，所以可以有多条数据。
+- `old`：UPDATE 变化列的旧值，按下标与 `data` 配对；它不是完整的更新前行。INSERT、DELETE 通常为空。
+- `database`、`table`：变更来源的库名和表名，用于判断来源和路由；是否在运行消息中出现仍需核对。
+- `pkNames`：主键列名列表，用于识别行；实际消费端是否使用它要结合代码确认。
+- `isDdl`：是否为 DDL 事件；参考消费代码会先判断该字段并忽略 DDL 消息。
+- `sql`：事件关联的 SQL 文本，可能为空；不能把它当作行数据的唯一来源。
+- `es`：Binlog 事件执行时间。
+- `ts`：FlatMessage 转换时的系统时间。
+- `gtid`：来源 Header 中的 GTID（如果存在）；不保证每条消息都有可用值。
+
+因此，消费端的关系可以先记成：`RocketMQ Message body → 一个 FlatMessage JSON → data 中的一条或多条行变更`。至于运行实例是否包含上述全部字段、字段为空时如何处理以及消息是否实际按分区拆分，仍需用真实 RocketMQ 消息验证。
+
 ## 3 详细方案
 
 本节按“先看完整流程，再看消息格式，最后看多行拆分”的顺序展开。初学者可以先读 3.1，理解一批变更如何从 MySQL 进入 Canal、变成 FlatMessage、发送到 RocketMQ 并被消费；再读 3.2 和 3.3，确认配置和字段含义；最后读 3.4，理解一条批次消息为什么可能对应多条 RocketMQ 消息。
@@ -421,3 +442,5 @@ private void doHandler(ElasticMessageTypeEnum type,
 本轮将“整条处理链路”和“按数据变化跟踪同一批数据”合并为一个章节标题，删除重复的抽象步骤列表，保留统一流程表和对应 FlatMessage JSON 示例。
 
 本轮将原流程表改为纯 Markdown 的分步骤列表，移除 HTML 换行标签，并让每个步骤、每条记录和每个处理结果单独换行展示，便于初学者逐项跟踪数据变化。
+
+本轮补充 RocketMQ 消费端消息格式总结，说明一个 RocketMQ 消息与一个 FlatMessage JSON 的对应关系、一个 FlatMessage 中多条 `data` 行变更的情况，以及核心字段含义；未执行真实 RocketMQ 消费联调。
