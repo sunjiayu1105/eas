@@ -30,18 +30,7 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 先记住一条主线：MySQL 产生 Binlog，Canal Server 持续取出变更批次，生产端把批次转换成 FlatMessage JSON，再发送到 RocketMQ，消费端从 RocketMQ 取出 JSON 后同步到 ES。`Entry`、`RowChange`、`RowData` 是 Canal 内部的数据结构，`FlatMessage` 是发送前组织出的消息对象，FlatMessage JSON 是序列化后的消息格式；它们不是彼此独立的服务。
 
-**整条处理链路**
-
-1. **MySQL 产生 Binlog**：业务事务提交后，MySQL 把 INSERT、UPDATE、DELETE 等行变化写入 Binlog。此时输出是 Binlog 二进制事件，输入方是 Canal Server。
-2. **Canal worker 拉取批次**：CanalMQStarter 为每个 destination 启动一个常驻 worker。worker 调用 `getWithoutAck(...)` 从 Canal Server 取得一个批次，批次中可能包含多个 Entry 和多条 RowData；取得的批次成为生产端的输入。
-3. **准备 Entry 数据**：`CanalRocketMQProducer.send(...)` 接收这个批次，并调用 `MQMessageUtils.buildMessageData(...)` 把批次整理成 `EntryRowData[]`，为后续读取 Entry、RowChange 和 RowData 做准备。
-4. **组装 FlatMessage**：当 `canal.mq.flatMessage=true` 时，生产端调用 `MQMessageUtils.messageConverter(...)`。该方法按事件创建 FlatMessage，写入事件元数据，并把多条 RowData 组织到 `data`；UPDATE 同时组织变化字段对应的 `old`。输出是一个或多个 FlatMessage 对象。
-5. **按行分区**：如果配置了分区哈希，生产端调用 `MQMessageUtils.messagePartition(...)`，按 `data` 中的行计算目标分区；同一行的 `data[i]` 和 `old[i]` 会放入同一个分区消息。输出是分区后的 FlatMessage 对象；没有分区配置时则沿用默认队列路径。
-6. **序列化并发送**：生产端调用 `JSON.toJSONBytes(...)` 把 FlatMessage 序列化为 JSON 字节，构造 RocketMQ `Message`，再调用 `sendMessage(...)` 发送到指定 topic 和队列。输出是 RocketMQ 中保存的消息。
-7. **RocketMQ 保存和投递**：Broker 持久化消息，消费者按消费组读取消息并维护消费进度。RocketMQ 只负责保存和投递消息，不解析 FlatMessage 的 `data` 数组，也不替消费端补齐字段。
-8. **消费端同步 ES**：消费端读取消息体中的 FlatMessage JSON，解析 `type`、`data` 和必要业务字段；对于 UPDATE，使用完整的 `data` 行按业务主键和 `version` 覆盖写入 ES。消费端的具体线程模型和方法名仍需结合项目代码确认。
-
-**按数据变化跟踪同一批数据**
+**整条处理链路：按数据变化跟踪同一批数据**
 
 下面用四条消费记录跟踪每一步的输入和输出。字段值是解释性示例，不代表当前环境已经抓取到的真实消息。
 
@@ -353,3 +342,5 @@ private void doHandler(ElasticMessageTypeEnum type,
 本轮补充四条消费记录在 MySQL、Binlog、Canal 批次、FlatMessage、RocketMQ 和 ES 阶段的具体数据示例；示例不代表真实运行消息，未执行端到端联调。
 
 本轮删除原“用流程表确认每一步的交接”段落，改为按“输入数据→处理动作→处理后数据→下一步输入”重新组织 3.1，便于 Canal 初学者连续理解数据如何变化。
+
+本轮将“整条处理链路”和“按数据变化跟踪同一批数据”合并为一个章节标题，删除重复的抽象步骤列表，保留统一流程表和对应 FlatMessage JSON 示例。
