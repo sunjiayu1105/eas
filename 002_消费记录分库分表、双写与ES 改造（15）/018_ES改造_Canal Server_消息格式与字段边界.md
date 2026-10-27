@@ -41,16 +41,16 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 **先看各环节输入和输出**
 
-| 步骤 | 执行者 | 什么时候执行 | 拿到什么 | 具体做什么 | 产出什么 | 交给谁 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | Binlog 二进制事件 | Canal Server |
-| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
-| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
-| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把多条 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
-| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
-| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
-| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可读取的消息 | RocketMQ 消费端 |
-| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；UPDATE 使用完整 `data` 行写入 ES | ES 中的新增、更新或删除结果 | ES |
+| 步骤 | 执行者 | 什么时候执行 | 拿到什么 | 具体做什么 | 本例中的数据变化 | 产出什么 | 交给谁 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | `c-1001` 执行 INSERT；`c-1002` 执行 UPDATE，status 从“异常（未确定）”变为“成功” | Binlog 二进制事件 | Canal Server |
+| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | 拉到包含两个 Entry 的批次：一个 INSERT、一个 UPDATE | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
+| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 保留两个 Entry 及其各自的 `RowChange`：INSERT 和 UPDATE | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
+| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 生成一个 INSERT FlatMessage 和一个 UPDATE FlatMessage；UPDATE 的 `data` 是成功，`old` 是异常（未确定） | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
+| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | 分别得到 INSERT JSON 和 UPDATE JSON；两类消息可进入相同或不同队列 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
+| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | 分别发送 INSERT 消息和 UPDATE 消息 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
+| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可以分别读到 INSERT 和 UPDATE 两类 JSON | 消费端可读取的消息 | RocketMQ 消费端 |
+| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE 分派处理 | 根据 `type` 分别新增 `c-1001`、更新 `c-1002` 的 ES 文档 | ES 中的新增、更新或删除结果 | ES |
 
 **再看 Canal 如何持续工作**
 
@@ -62,23 +62,7 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
 
-以下用两条消费记录同时发生状态变化的 UPDATE 作为示例：
-
-```text
-MySQL：c-1001 执行 INSERT，c-1002 执行 UPDATE（status 从“异常（未确定）”变为“成功”）
-    ↓
-Binlog：记录一条 INSERT 和一条 UPDATE 行变化
-    ↓
-Canal 批次：包含两个 Entry，分别是 RowChange(INSERT) 和 RowChange(UPDATE)
-    ↓
-FlatMessage JSON：分别生成 INSERT 和 UPDATE 消息；UPDATE 消息的 data 是更新后行，old 是变化前的 status
-    ↓
-RocketMQ：分别保存并转发这两类 JSON 消息
-    ↓
-消费端：根据 type 分别处理 INSERT 和 UPDATE，再写入 ES
-```
-
-这里的 JSON 是消息体示例；实际字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
+上表用两条记录执行不同操作的例子贯穿整个流程；其中 JSON 字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
 
 ### 3.2 配置开关：决定发送什么格式
 
