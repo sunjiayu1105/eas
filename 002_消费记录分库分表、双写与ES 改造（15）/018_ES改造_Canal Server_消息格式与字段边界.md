@@ -32,6 +32,8 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>)。
 
+明确消息体与行数组的关系后，下面用一条多行 UPDATE 消息说明字段如何承载一次变更。
+
 ### 3.2 多行 UPDATE 消息示例
 
 假设三条消费记录的状态都由“异常（未确定）”改为“成功”，转换后进入同一条 UPDATE 消息。`type` 表示操作类型，`data` 保存更新后的行，`old` 保存变化字段的旧值。
@@ -95,6 +97,8 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 消费端读取 `data` 中的三行即可处理三个更新。当前完整行覆盖方案不需要使用 `old` 合并字段。`old` 的配对关系、多行、空值和变化列集合仍须实测。分区后如何保留对应关系见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
 
+这个示例先确定了 `data` 和 `old` 的实际形态，下一步再分别说明 FlatMessage 的固定字段和行对象中的业务字段。
+
 ### 3.3 字段说明
 
 **顶层字段：** 下表列出的都是 Canal `FlatMessage` 定义的字段，序列化后位于 JSON 对象的最外层，用来描述消息来源、操作类型和行数据，例如 `database`、`table`、`type`、`data`、`old`。
@@ -121,6 +125,8 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 **行值类型：** 源码中的 `data`、`old` 是 `List<Map<String,String>>`：非空列值通常以字符串输出，SQL NULL 对应 JSON null。消费端需按业务类型转换 `version` 等字段，不能按字符串字典序比较版本。
 
+字段说明完成后，再根据 `type` 区分 INSERT、UPDATE 和 DELETE 的数据方向；三类事件分别决定 `data` 和 `old` 如何被消费。
+
 ### 3.4 三种操作分别提供什么行数据
 
 “行前值”是操作执行前的列值，“行后值”是操作执行后的列值。一个 FlatMessage 只有一个操作类型；多条同类行变化可以放在同一个对象中，不同操作类型分别形成对象。
@@ -133,9 +139,9 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 这里说明的是字段取值方向，是否包含全部必要列还要检查源库配置和实际消息，不能看到 UPDATE 就默认 data 一定完整。
 
-### 3.5 为什么 UPDATE 要提供完整行
+### 3.5 UPDATE 完整行与 ES 写入条件
 
-字段契约就是生产端与消费端约定“消息必须携带哪些字段，以及这些字段如何解释”。
+字段契约规定生产端必须提供哪些字段，以及消费端如何解释这些字段。
 
 **项目字段契约：** 业务主键、操作类型、原始 `create_time`、来源映射和必要业务列按用途传递。新增、更新携带同次变更的行后数据及 `version`；DELETE 保留删除前的 `consume_id`（业务代码中可映射为 `consumeId`）、原始 `create_time` 等定位信息。
 
@@ -145,7 +151,9 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 完整性满足后，消费端可以读取 `data` 的完整行，按业务主键和 `version` 判断新旧，再用完整行覆盖写入 ES；不需要依赖 `old` 合并字段。
 
-### 3.6 重复收到消息时，为什么仍要携带版本
+因此，完整行是 UPDATE 能够覆盖写入 ES 的前提；在此基础上，还需要说明重复消息到达时如何避免旧版本覆盖新版本。
+
+### 3.6 重复消息的版本控制边界
 
 **重复消息与版本控制：** 独立事件 ID 用于识别同一次源数据变更，常用于事件级去重和追踪。当前 ES 同步允许重复请求，不为避免重复写入而增加这个字段。这里 `consume_id` 标识消费记录，`version` 标识该记录的业务版本；每次有效更新应递增版本，数据与版本必须来自同次变更。重复投递必须携带相同版本、相同操作和内容，并定位到同一个物理索引、同一个 ES 文档 ID。
 
@@ -252,6 +260,12 @@ private void doHandler(ElasticMessageTypeEnum type,
 ## 6 复核记录
 
 已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
+
+## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
+
+本轮按“消息体与行数据 → 多行消息示例 → 字段说明 → 操作类型 → UPDATE 完整行 → 重复消息版本控制”的顺序复核并优化了承接关系；未改变已确认的消息契约、业务规则和验证边界。
 
 ## 7 参考来源
 
