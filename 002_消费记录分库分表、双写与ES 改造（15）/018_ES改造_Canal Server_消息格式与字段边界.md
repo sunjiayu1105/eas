@@ -11,11 +11,14 @@
 - 当前项目要求 UPDATE 的 `data` 保证为完整更新后行；只有通过完整性校验的消息，才能按完整文档覆盖写入 ES。该要求的配置和运行效果仍需验证。
 - 当前 ES 同步允许重复处理，通过业务版本控制防止旧数据覆盖新数据，不为避免重复写入而引入独立事件 ID；实际版本校验和冲突处理仍需验证。
 
+
+
+
 ## 2 面试口述精炼版本
 
 **消息体采用 FlatMessage JSON**
 
-项目采用 FlatMessage JSON：一条 RocketMQ 消息的 body 是一个 JSON 对象，data 数组可以包含同一张表、同一操作类型的多条行变更。INSERT、UPDATE 取行后值，DELETE 取行前值；UPDATE 的 old 保存变化列旧值。消费端遍历 data，完整行通过校验后才用于 ES 覆盖写入。配置加载和真实消息仍待验证，字段与示例见[详细方案](#3-详细方案)。
+项目采用 FlatMessage JSON：一条 RocketMQ 消息的 `body` 是一个 JSON 对象，`data` 数组可以包含同一张表、同一操作类型的多条行变更。INSERT、UPDATE 取行后值，DELETE 取行前值；UPDATE 的 `old` 保存变化列旧值。消费端遍历 `data`，完整行通过校验后才用于 ES 覆盖写入。配置加载和真实消息仍待验证，字段与示例见[详细方案](#3-详细方案)。
 
 ## 3 详细方案
 
@@ -245,6 +248,10 @@ private void doHandler(ElasticMessageTypeEnum type,
 本轮补充包含三条 UPDATE 行变更的 FlatMessage JSON，并说明 `data[i]` 与 `old[i]` 的逐条对应关系；示例字段和时间值不代表真实运行消息。
 
 已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
+
+## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
 
 ## 7 参考来源
 
