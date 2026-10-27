@@ -36,7 +36,20 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 | RocketMQ 生产端 | FlatMessage JSON 字符串或字节数组 | 根据 topic、分区键和队列规则发送消息 | RocketMQ 中保存的消息及发送结果 |
 | RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 解析 JSON，读取 `type`、`data` 等字段并分派业务处理 | 例如写入或删除 ES 的业务操作 |
 
-因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+**方法调用顺序**
+
+在 Canal 1.1.7 的生产端源码中，上述“Entry/RowData → FlatMessage → RocketMQ 消息体”可以按以下方法理解：
+
+1. `CanalRocketMQProducer.send(...)` 接收 Canal 批次消息；当 `canal.mq.flatMessage=true` 时，先调用 `MQMessageUtils.buildMessageData(...)` 准备 `EntryRowData[]`。
+2. `MQMessageUtils.messageConverter(...)` 遍历 `EntryRowData[]`，为每个事件创建 `FlatMessage`，填充库名、表名、事件类型、时间、`data` 和 `old`。其中 `data` 对 INSERT/UPDATE 取 `afterColumns`，对 DELETE 取 `beforeColumns`；UPDATE 的 `old` 从变化列中取更新前值。
+3. 配置了分区哈希时，`CanalRocketMQProducer.send(...)` 调用 `MQMessageUtils.messagePartition(...)`。该方法按 `data` 中的行计算分区，并用同一个下标把对应的 `old` 放入分区后的 FlatMessage。
+4. 生产端使用 `JSON.toJSONBytes(flatMessage, JSONWriter.Feature.WriteNulls)` 将 FlatMessage 序列化成 JSON 字节，再构造 RocketMQ `Message` 并调用 `sendMessage(...)`。
+
+上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
+
+**消息流转结果**
+
+每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
 
 以下用两条消费记录同时发生状态变化的 UPDATE 作为示例：
 
@@ -75,15 +88,6 @@ canal.mq.flatMessage=true
 ```text
 FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 ```
-
-在 Canal 1.1.7 的生产端源码中，这个转换链可以按以下方法理解：
-
-1. `CanalRocketMQProducer.send(...)` 接收 Canal 批次消息；当 `canal.mq.flatMessage=true` 时，先调用 `MQMessageUtils.buildMessageData(...)` 准备 `EntryRowData[]`。
-2. `MQMessageUtils.messageConverter(...)` 遍历 `EntryRowData[]`，为每个事件创建 `FlatMessage`，填充库名、表名、事件类型、时间、`data` 和 `old`。其中 `data` 对 INSERT/UPDATE 取 `afterColumns`，对 DELETE 取 `beforeColumns`；UPDATE 的 `old` 从变化列中取更新前值。
-3. 配置了分区哈希时，`CanalRocketMQProducer.send(...)` 调用 `MQMessageUtils.messagePartition(...)`。该方法按 `data` 中的行计算分区，并用同一个下标把对应的 `old` 放入分区后的 FlatMessage。
-4. 生产端使用 `JSON.toJSONBytes(flatMessage, JSONWriter.Feature.WriteNulls)` 将 FlatMessage 序列化成 JSON 字节，再构造 RocketMQ `Message` 并调用 `sendMessage(...)`。
-
-上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
 
 下面的 JSON 只展示 `type`、`data`、`old` 的字段关系，是精简示例，不代表当前运行实例最终发送的完整消息；数据库、表名、主键、时间和 `gtid` 等字段是否存在，仍需通过实际消息样例核对。
 
