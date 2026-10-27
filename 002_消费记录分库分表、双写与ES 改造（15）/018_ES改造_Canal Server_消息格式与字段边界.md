@@ -41,13 +41,13 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 以一条 UPDATE 为例，数据会依次表现为：
 
 ```text
-MySQL：amount 从 10.00 更新为 12.00
+MySQL：消费记录的 status 从“异常（未确定）”更新为“成功”
     ↓
 Binlog：记录这次行变化
     ↓
 Canal Entry：Header + RowChange(UPDATE) + RowData
     ↓
-FlatMessage JSON：data 放更新后行，old 放变化字段的旧值
+FlatMessage JSON：data 放更新后行，old 放变化字段的旧值（status 从“异常（未确定）”变为“成功”）
     ↓
 RocketMQ：保存并转发这段 JSON
     ↓
