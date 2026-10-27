@@ -52,7 +52,56 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 | 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 UPDATE 的 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | 分别得到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 内的两行可能进入同一条消息，也可能按分区拆成多条 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
 | 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | 发送 INSERT、UPDATE、DELETE 三类消息；UPDATE 是否一条或多条取决于分区结果 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
 | 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可以分别读到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 可能是一条或多条消息 | 消费端可读取的消息 | RocketMQ 消费端 |
-| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE、DELETE 分派处理 | 根据 `type` 新增 `c-1001`，更新 `c-1002`、`c-1004`，删除 `c-1003` 的 ES 文档 | ES 中的新增、更新或删除结果 | ES |
+| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE、DELETE 分派处理 | 根据 `type` 新增 `c-1001`，更新 `c-1002`、`c-1004`，处理 `c-1003` 的删除事件；是否删除 ES 文档由项目消费逻辑决定 | ES 中的新增、更新或删除结果 | ES |
+
+**本例的具体数据变化**
+
+下面用一批消费记录说明每个阶段的数据长什么样。字段值是为了帮助理解而编写的示例，不代表当前环境中已经抓取到的真实 Binlog 或 RocketMQ 消息。
+
+| 阶段 | `c-1001` | `c-1002` | `c-1003` | `c-1004` |
+| --- | --- | --- | --- | --- |
+| MySQL 业务变化 | INSERT：`status=成功`，`version=1` | UPDATE：`status` 从“异常（未确定）”改为“成功”，`version` 从 `1` 变为 `2` | DELETE：删除前为 `status=成功`，`version=3` | UPDATE：`status` 从“异常（未确定）”改为“成功”，`version` 从 `4` 变为 `5` |
+| Binlog / Canal 批次 | 一个 INSERT `RowData` | 一个 UPDATE `RowData`，包含更新前后行 | 一个 DELETE `RowData` | 一个 UPDATE `RowData`，包含更新前后行 |
+| FlatMessage `type` | `INSERT` | `UPDATE` | `DELETE` | `UPDATE` |
+| 消费端对 ES 的动作 | 新增文档 | 用更新后的完整行覆盖文档 | 根据删除前的 `consume_id` 处理删除事件；本文不将其确定为 ES 逐条 Delete | 用更新后的完整行覆盖文档 |
+
+Canal 生产端会按事件类型组装 FlatMessage。为了展示 `data` 和 `old` 的含义，概念上的消息体可以写成下面三类 JSON：
+
+```json
+{
+  "type": "INSERT",
+  "data": [
+    {"consume_id": "c-1001", "status": "成功", "version": 1}
+  ],
+  "old": []
+}
+```
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1002", "status": "成功", "version": 2},
+    {"consume_id": "c-1004", "status": "成功", "version": 5}
+  ],
+  "old": [
+    {"status": "异常（未确定）", "version": 1},
+    {"status": "异常（未确定）", "version": 4}
+  ]
+}
+```
+
+```json
+{
+  "type": "DELETE",
+  "data": [
+    {"consume_id": "c-1003", "status": "成功", "version": 3}
+  ],
+  "old": []
+}
+```
+
+这三段 JSON 会分别作为 RocketMQ 消息体发送；如果 UPDATE 的两行被分到不同队列，第二段 JSON 可能按分区拆成两条消息，但每条消息仍须保留对应的 `data` 和 `old`。RocketMQ Broker 保存并投递这些消息，不会修改 JSON 内的字段。消费端读到消息后，按 `type` 分派：新增 `c-1001`、更新 `c-1002` 和 `c-1004`、处理 `c-1003` 的删除事件。以上只是数据流转示例，实际消息是否包含这些字段以及 DELETE 后如何影响 ES，仍需结合运行配置、消费代码和真实消息验证。
 
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
@@ -315,3 +364,5 @@ private void doHandler(ElasticMessageTypeEnum type,
 ## 6 复核记录
 
 本轮执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，将整条处理链路示例扩展为四条消费记录和三种操作类型，并复核了表格中的 Entry、FlatMessage、RocketMQ 消息及 ES 处理结果对应关系；未执行真实 Canal、RocketMQ 或 ES 联调。
+
+本轮补充四条消费记录在 MySQL、Binlog、Canal 批次、FlatMessage、RocketMQ 和 ES 阶段的具体数据示例；示例不代表真实运行消息，未执行端到端联调。
