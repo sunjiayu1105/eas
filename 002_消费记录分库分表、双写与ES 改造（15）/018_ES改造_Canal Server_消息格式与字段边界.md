@@ -4,7 +4,7 @@
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 `FlatMessage` JSON、Canal 二进制消息及项目字段契约；日志读取见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，事务边界见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明项目采用的 `FlatMessage` JSON 及项目字段契约，不展开未采用的二进制方案；日志读取见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，事务边界见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 - 本文按 Canal 初学者能够连续理解的顺序编写：先说明消息在 Canal 链路中的位置，再说明格式开关、字段含义、拆分对应关系和项目字段契约。
@@ -24,7 +24,7 @@ FlatMessage 是 Canal 的 Java 消息对象；FlatMessage JSON 是它序列化�
 
 一个对象只有一个 database、table、type；data 内可以有多行，但不会把 INSERT 和 UPDATE 混在同一个对象中。消费端一次回调拿到多少条 RocketMQ 消息，是消费 API 的批量行为，与一个 body 中有多少行不同。
 
-全局配置 conf/canal.properties 要求 canal.mq.flatMessage=true。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>)。false 对应 Canal 二进制协议，需要解码 Packet/Messages 和 Entry，不是项目采用的格式。
+全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>)。
 
 ### 3.2 字段含义
 
@@ -118,10 +118,6 @@ FlatMessage 是 Canal 的 Java 消息对象；FlatMessage JSON 是它序列化�
 **UPDATE 完整行约束：** 源库应使用 `binlog_row_image=FULL`，使 UPDATE 的 Binlog 行事件包含完整的更新后列；Canal 转换时不能再过滤 ES 所需字段。生产端发送前还要按表定义检查 `data` 是否包含 `consume_id`、`create_time`、业务字段和 `version` 等必要列，缺少字段时不能直接按完整文档覆盖写入，应进入重试或异常处理流程。`old` 只记录变化字段的旧值，不能用来补齐缺失的完整行。
 
 完整性满足后，消费端可以读取 `data` 的完整行，按业务主键和 `version` 判断新旧，再用完整行覆盖写入 ES；不需要依赖 `old` 合并字段。
-
-### 3.5 二进制格式的识别边界
-
-**二进制消息：** 先解码 Canal Packet/Messages，再解析 Entry 的 RowChange/RowData。Entry Header 可保留日志文件和偏移；按键分区拆行时复制原 Header，但不新增拆分前的原始行序号，不能只凭文件和偏移区分同一原始事件内的多行。
 
 ## 4 参考文章与项目设计的区别
 
