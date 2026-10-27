@@ -38,20 +38,20 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
 
-以一条 UPDATE 为例，数据会依次表现为：
+以下用两条消费记录同时发生状态变化的 UPDATE 作为示例：
 
 ```text
-MySQL：消费记录的 status 从“异常（未确定）”更新为“成功”
+MySQL：c-1001、c-1002 的 status 都从“异常（未确定）”更新为“成功”
     ↓
-Binlog：记录这次行变化
+Binlog：记录两条行变化
     ↓
-Canal Entry：Header + RowChange(UPDATE) + RowData
+Canal Entry：Header + RowChange(UPDATE) + 两个 RowData
     ↓
-FlatMessage JSON：data 放更新后行，old 放变化字段的旧值（status 从“异常（未确定）”变为“成功”）
+FlatMessage JSON：data 放两条更新后行，old 按下标放两条记录变化前的 status
     ↓
-RocketMQ：保存并转发这段 JSON
+RocketMQ：将这段包含两条数据的 JSON 保存并转发
     ↓
-消费端：读取 data 中的完整更新后行，按 consume_id 和 version 写入 ES
+消费端：循环读取 data 中的两条完整更新后行，分别写入 ES
 ```
 
 这里的 JSON 是消息体示例；实际字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
@@ -76,16 +76,28 @@ canal.mq.flatMessage=true
 FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 ```
 
+在 Canal 1.1.7 的生产端源码中，这个转换链可以按以下方法理解：
+
+1. `CanalRocketMQProducer.send(...)` 接收 Canal 批次消息；当 `canal.mq.flatMessage=true` 时，先调用 `MQMessageUtils.buildMessageData(...)` 准备 `EntryRowData[]`。
+2. `MQMessageUtils.messageConverter(...)` 遍历 `EntryRowData[]`，为每个事件创建 `FlatMessage`，填充库名、表名、事件类型、时间、`data` 和 `old`。其中 `data` 对 INSERT/UPDATE 取 `afterColumns`，对 DELETE 取 `beforeColumns`；UPDATE 的 `old` 从变化列中取更新前值。
+3. 配置了分区哈希时，`CanalRocketMQProducer.send(...)` 调用 `MQMessageUtils.messagePartition(...)`。该方法按 `data` 中的行计算分区，并用同一个下标把对应的 `old` 放入分区后的 FlatMessage。
+4. 生产端使用 `JSON.toJSONBytes(flatMessage, JSONWriter.Feature.WriteNulls)` 将 FlatMessage 序列化成 JSON 字节，再构造 RocketMQ `Message` 并调用 `sendMessage(...)`。
+
+上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
+
 下面的 JSON 只展示 `type`、`data`、`old` 的字段关系，是精简示例，不代表当前运行实例最终发送的完整消息；数据库、表名、主键、时间和 `gtid` 等字段是否存在，仍需通过实际消息样例核对。
 
-例如，同一条消费记录的三类事件可以这样理解：
+例如，同一张消费记录表中多条记录的三类事件可以这样理解：
 
 **INSERT：** `data` 是新插入的行，`old` 通常为空。
 
 ```json
 {
   "type": "INSERT",
-  "data": [{"consume_id": "c-1001", "amount": "10.00", "version": 1}],
+  "data": [
+    {"consume_id": "c-1001", "status": "成功", "version": 2},
+    {"consume_id": "c-1002", "status": "成功", "version": 3}
+  ],
   "old": []
 }
 ```
@@ -95,8 +107,14 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 ```json
 {
   "type": "UPDATE",
-  "data": [{"consume_id": "c-1001", "amount": "12.00", "version": 2}],
-  "old": [{"amount": "10.00", "version": 1}]
+  "data": [
+    {"consume_id": "c-1001", "status": "成功", "version": 2},
+    {"consume_id": "c-1002", "status": "成功", "version": 3}
+  ],
+  "old": [
+    {"status": "异常（未确定）", "version": 1},
+    {"status": "异常（未确定）", "version": 2}
+  ]
 }
 ```
 
@@ -105,7 +123,10 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 ```json
 {
   "type": "DELETE",
-  "data": [{"consume_id": "c-1001", "amount": "12.00", "version": 2}],
+  "data": [
+    {"consume_id": "c-1001", "status": "成功", "version": 2},
+    {"consume_id": "c-1002", "status": "成功", "version": 3}
+  ],
   "old": []
 }
 ```
@@ -130,19 +151,19 @@ FlatMessage 的 `data` 可以包含多条行变更。生产端先按 `data` 中�
 {
   "type": "UPDATE",
   "data": [
-    {"consume_id": "c-1001", "amount": "12.00"},
-    {"consume_id": "c-1002", "amount": "22.00"}
+    {"consume_id": "c-1001", "status": "成功"},
+    {"consume_id": "c-1002", "status": "成功"}
   ],
   "old": [
-    {"amount": "10.00"},
-    {"amount": "20.00"}
+    {"status": "异常（未确定）"},
+    {"status": "异常（未确定）"}
   ]
 }
 ```
 
 如果两行被计算到同一个队列，可以把上面的完整 JSON 作为一条 RocketMQ 消息发送。Broker 保存一条消息，消费端取到后解析 `data` 数组并循环处理两行；`data[0]` 必须继续和 `old[0]` 配对，`data[1]` 必须继续和 `old[1]` 配对。
 
-如果两行被计算到不同队列，生产端可以按分区结果拆成两条 RocketMQ 消息。第一条只携带 `c-1001` 对应的 `data` 和 `old`，第二条只携带 `c-1002` 对应的 `data` 和 `old`。消费端分别处理两条消息，但每条消息仍要保留行后值与旧值的对应关系。
+如果多条记录被计算到不同队列，生产端可以按分区结果拆成多条 RocketMQ 消息。每条消息可以继续携带同一队列中的多条行变更，消费端分别处理这些消息，但每条消息仍要保留行后值与旧值的对应关系。
 
 RocketMQ 的处理边界是：生产端把消息写入指定 topic 的队列，Broker 持久化消息并维护队列中的位置，消费者按消费组读取消息并提交消费进度。RocketMQ 不会自动把一条 JSON 内的 `data` 数组拆成多条业务记录，也不会替业务代码合并或补齐字段。是否拆分、如何计算分区键以及一条消息最终包含几行，由 Canal 生产端的转换和分区逻辑决定；实际发行包、项目配置和真实消息仍需验证。
 
@@ -154,54 +175,66 @@ RocketMQ 的处理边界是：生产端把消息写入指定 topic 的队列，B
 {
   "type": "UPDATE",
   "data": [
-    {"consume_id": "c-1001", "amount": "12.00"},
-    {"consume_id": "c-1002", "amount": "22.00"}
+    {"consume_id": "c-1001", "status": "成功"},
+    {"consume_id": "c-1002", "status": "成功"}
   ],
   "old": [
-    {"amount": "10.00"},
-    {"amount": "20.00"}
+    {"status": "异常（未确定）"},
+    {"status": "异常（未确定）"}
   ]
 }
 ```
 
-上例中，`data[0]` 与 `old[0]` 表示 `c-1001` 从 `10.00` 更新为 `12.00`，`data[1]` 与 `old[1]` 表示 `c-1002` 从 `20.00` 更新为 `22.00`。如果按 `consume_id` 分区，拆分到不同队列时也必须分别保留这两组对应关系，不能先单独排序或重新组合 `data`、`old`。INSERT 和 DELETE 通常没有需要配对的 `old`；多行 UPDATE 的数组长度、空值表示和实际拆分结果仍需结合运行消息样例核对。
+上例中，`data[0]` 与 `old[0]` 表示 `c-1001` 从“异常（未确定）”变为“成功”，`data[1]` 与 `old[1]` 表示 `c-1002` 发生同样的状态变化。如果按 `consume_id` 分区，拆分到不同队列时也必须分别保留这两组对应关系，不能先单独排序或重新组合 `data`、`old`。INSERT 和 DELETE 通常没有需要配对的 `old`；多行 UPDATE 的数组长度、空值表示和实际拆分结果仍需结合运行消息样例核对。
 
 同一份多行 FlatMessage，可能因为分区结果不同而形成不同的 RocketMQ 消息形态。下面的队列名仅用于说明，不代表项目已经确定的队列映射。
 
 **场景一：多行变更被拆成多条消息**
 
-如果 `c-1001` 和 `c-1002` 被计算到不同队列，生产端可以分别发送两条消息。每条消息仍保留对应行的 `data` 和 `old`：
-
-```json
-{
-  "type": "UPDATE",
-  "data": [{"consume_id": "c-1001", "amount": "12.00"}],
-  "old": [{"amount": "10.00"}]
-}
-```
-
-```json
-{
-  "type": "UPDATE",
-  "data": [{"consume_id": "c-1002", "amount": "22.00"}],
-  "old": [{"amount": "20.00"}]
-}
-```
-
-**场景二：多行变更仍由一条消息发送**
-
-如果 `c-1001` 和 `c-1002` 被计算到同一个队列，生产端可以保留一条消息，消息中的 `data` 和 `old` 仍按下标对应：
+如果四条记录被计算到两个队列，生产端可以分别发送两条消息，每条消息仍保留多条行变更及其对应的 `old`：
 
 ```json
 {
   "type": "UPDATE",
   "data": [
-    {"consume_id": "c-1001", "amount": "12.00"},
-    {"consume_id": "c-1002", "amount": "22.00"}
+    {"consume_id": "c-1001", "status": "成功"},
+    {"consume_id": "c-1003", "status": "成功"}
   ],
   "old": [
-    {"amount": "10.00"},
-    {"amount": "20.00"}
+    {"status": "异常（未确定）"},
+    {"status": "异常（未确定）"}
+  ]
+}
+```
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1002", "status": "成功"},
+    {"consume_id": "c-1004", "status": "成功"}
+  ],
+  "old": [
+    {"status": "异常（未确定）"},
+    {"status": "异常（未确定）"}
+  ]
+}
+```
+
+**场景二：多行变更仍由一条消息发送**
+
+如果 `c-1001` 和 `c-1002` 被计算到同一个队列，生产端可以保留一条包含两条行变更的消息，消息中的 `data` 和 `old` 仍按下标对应：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1001", "status": "成功"},
+    {"consume_id": "c-1002", "status": "成功"}
+  ],
+  "old": [
+    {"status": "异常（未确定）"},
+    {"status": "异常（未确定）"}
   ]
 }
 ```
