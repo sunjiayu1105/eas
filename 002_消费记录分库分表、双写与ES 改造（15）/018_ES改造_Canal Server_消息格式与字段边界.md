@@ -26,7 +26,35 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 ### 3.1 先建立消息链路概念
 
-可以按“Binlog 事件 → Canal Entry → FlatMessage JSON → RocketMQ 消费端”的顺序理解本章。Binlog 事件先由 Canal 解析成 Entry 和 RowData；消息转换阶段再根据事件类型组织 `data`、`old` 等字段；RocketMQ 消费端最后按 JSON 读取这些字段。本文只展开中间的消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+可以按“Binlog 事件 → Canal Entry → FlatMessage JSON → RocketMQ 消费端”的顺序理解本章。这里的 `Entry`、`RowChange`、`RowData` 是 Canal 内部的数据结构，`FlatMessage` 是发送前组织出的消息对象，FlatMessage JSON 是序列化后的消息格式；它们不是彼此独立的服务。
+
+| 环节 | 输入 | 主要处理 | 输出 |
+| --- | --- | --- | --- |
+| MySQL Binlog | 已提交的 INSERT、UPDATE、DELETE 等行变化 | 将数据库行变化写入 Binlog | Binlog 二进制事件 |
+| Canal Server | Binlog 二进制事件 | 解码 Packet/Messages，解析表名、事件类型、列信息和行数据 | Canal `Entry`，其中包含 `Header`、`RowChange`、`RowData` |
+| FlatMessage 转换 | `Entry` 和 `RowData` | 按事件类型组织 `type`、`data`、`old` 等字段 | `FlatMessage` 对象，再序列化为 FlatMessage JSON |
+| RocketMQ 生产端 | FlatMessage JSON 字符串或字节数组 | 根据 topic、分区键和队列规则发送消息 | RocketMQ 中保存的消息及发送结果 |
+| RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 解析 JSON，读取 `type`、`data` 等字段并分派业务处理 | 例如写入或删除 ES 的业务操作 |
+
+因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 负责保存和转发，消费端最后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+
+以一条 UPDATE 为例，数据会依次表现为：
+
+```text
+MySQL：amount 从 10.00 更新为 12.00
+    ↓
+Binlog：记录这次行变化
+    ↓
+Canal Entry：Header + RowChange(UPDATE) + RowData
+    ↓
+FlatMessage JSON：data 放更新后行，old 放变化字段的旧值
+    ↓
+RocketMQ：保存并转发这段 JSON
+    ↓
+消费端：读取 data 中的完整更新后行，按 consume_id 和 version 写入 ES
+```
+
+这里的 JSON 是消息体示例；实际字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
 
 ### 3.2 配置文件与格式开关
 
