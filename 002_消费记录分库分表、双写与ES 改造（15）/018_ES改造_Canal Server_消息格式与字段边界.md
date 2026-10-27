@@ -41,14 +41,16 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 **先看各环节输入和输出**
 
-| 环节 | 输入 | 关键方法/入口 | 方法职责 | 执行方式/触发 | 输出 |
-| --- | --- | --- | --- | --- | --- |
-| MySQL Binlog | 已提交的 INSERT、UPDATE、DELETE 等行变化 | MySQL Binlog 写入机制 | 将数据库行变化写入 Binlog | 随事务提交产生事件，不是本项目定时任务 | Binlog 二进制事件 |
-| Canal Server | Binlog 二进制事件 | `CanalMQStarter.start(...)`、`worker(...)`、`getWithoutAck(...)` | 为每个 destination 启动 MQ worker；worker 拉取 Canal 批次并在批次非空时进入生产端处理 | 常驻 worker 循环拉取，不是固定时间间隔的定时任务 | Canal 事件数据 |
-| FlatMessage 转换 | `EntryRowData[]` | `CanalRocketMQProducer.send(...)`、`MQMessageUtils.buildMessageData(...)`、`MQMessageUtils.messageConverter(...)` | `send(...)` 选择消息格式和发送路径；`buildMessageData(...)` 准备 `EntryRowData[]`；`messageConverter(...)` 创建 FlatMessage 并组织 `data`、`old` | 每次 `getWithoutAck(...)` 取得有效批次后执行 | `FlatMessage` 对象 |
-| RocketMQ 分区与封装 | `FlatMessage` 对象 | `MQMessageUtils.messagePartition(...)`、`JSON.toJSONBytes(...)` | `messagePartition(...)` 按行计算分区并保持 `data[i]` 与 `old[i]` 对应；`JSON.toJSONBytes(...)` 将 FlatMessage 序列化为保留 null 字段的 JSON 字节 | 当前批次处理链中的同步步骤；分区发送可使用生产端线程池 | FlatMessage JSON 字节和 RocketMQ `Message` |
-| RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 调用 RocketMQ 生产客户端，将消息发送到指定 topic 和队列，并处理发送结果 | 在当前批次处理链中执行，发送结果通过回调影响批次确认 | RocketMQ 中可供消费的消息 |
-| RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 项目消费端 JSON 解析入口（具体方法待确认） | 解析 `type`、`data` 等字段并分派业务处理 | 消费端线程/容器模型待结合项目代码确认 | 例如写入或删除 ES 的业务操作 |
+| 步骤 | 执行者 | 什么时候执行 | 拿到什么 | 具体做什么 | 产出什么 | 交给谁 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | Binlog 二进制事件 | Canal Server |
+| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
+| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
+| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把多条 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
+| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
+| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
+| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可读取的消息 | RocketMQ 消费端 |
+| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；UPDATE 使用完整 `data` 行写入 ES | ES 中的新增、更新或删除结果 | ES |
 
 **再看 Canal 如何持续工作**
 
