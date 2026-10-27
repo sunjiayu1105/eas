@@ -36,7 +36,32 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 | RocketMQ 生产端 | FlatMessage JSON 字符串或字节数组 | 根据 topic、分区键和队列规则发送消息 | RocketMQ 中保存的消息及发送结果 |
 | RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 解析 JSON，读取 `type`、`data` 等字段并分派业务处理 | 例如写入或删除 ES 的业务操作 |
 
-因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 负责保存和转发，消费端最后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
+
+**FlatMessage 中有多条数据时，RocketMQ 如何处理**
+
+假设转换后的 FlatMessage JSON 如下，`data` 中有两条 UPDATE 行，`old` 按同一下标保存对应的旧值：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1001", "amount": "12.00"},
+    {"consume_id": "c-1002", "amount": "22.00"}
+  ],
+  "old": [
+    {"amount": "10.00"},
+    {"amount": "20.00"}
+  ]
+}
+```
+
+生产端先根据项目约定计算分区键，再决定消息如何写入 RocketMQ：
+
+1. 如果两行被计算到同一个队列，可以把上面的完整 JSON 作为**一条 RocketMQ 消息**发送。Broker 保存一条消息，消费端取到这条消息后解析 `data` 数组，并循环处理两行；`data[0]` 必须继续和 `old[0]` 配对，`data[1]` 必须继续和 `old[1]` 配对。
+2. 如果两行被计算到不同队列，生产端可以按分区结果拆成**两条 RocketMQ 消息**。第一条只携带 `c-1001` 对应的 `data` 和 `old`，第二条只携带 `c-1002` 对应的 `data` 和 `old`。消费端此时分别处理两条消息，但每条消息仍要保留行后值与旧值的对应关系。
+
+RocketMQ 的职责是接收生产端发送的消息、按 topic 和队列保存消息，并向消费者提供消息读取和消费进度管理；它不会把一条 JSON 内的 `data` 数组自动解析成多条业务记录，也不会替业务代码合并或补齐字段。是否拆分、如何计算分区键以及一条消息最终包含几行，由 Canal 生产端的转换和分区逻辑决定；实际发行包、项目配置和真实消息仍需验证。
 
 以一条 UPDATE 为例，数据会依次表现为：
 
