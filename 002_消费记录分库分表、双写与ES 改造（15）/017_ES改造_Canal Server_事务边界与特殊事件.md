@@ -1,10 +1,10 @@
-# 019_ES改造_Canal Server_事务边界与特殊事件
+# 017_ES改造_Canal Server_事务边界与特殊事件
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明事务标记、消息边界和 DDL 等特殊事件；日志解析见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)，字段格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
+- 本文只说明事务标记、消息边界和 DDL 等特殊事件；日志解析见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，字段格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
 - 一条 MQ 消息不直接等同于完整源事务；特殊事件的具体暂停、恢复和隔离策略仍待确认。
 
 ## 2 面试口述精炼版本
@@ -49,5 +49,7 @@ DDL、TRUNCATE、主键变更和未知事件不能不加区分地进入普通行
 - 多分区结构变更如何隔离并协调恢复？
 
 ## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
 
 本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；未执行 Canal、MySQL、RocketMQ 或 Elasticsearch 联调、故障演练或恢复测试。

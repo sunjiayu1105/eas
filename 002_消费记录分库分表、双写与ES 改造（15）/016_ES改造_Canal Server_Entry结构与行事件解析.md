@@ -1,11 +1,11 @@
-# 017_ES改造_Canal Server_Binlog读取与Entry解析
+# 016_ES改造_Canal Server_Entry结构与行事件解析
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Binlog 事件进入 Canal 后如何表示为 Entry、RowChange 和 RowData，以及普通行事件与事务/DDL 事件的解析边界；读取连接和过滤范围见 [Binlog读取与过滤范围](<./016_ES改造_Canal Server_Binlog读取与过滤范围.md>)。
-- 消息格式、字段契约和 DELETE 前值见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；事务和特殊事件处置见 [事务边界与特殊事件](<./019_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明 Binlog 事件进入 Canal 后如何表示为 Entry、RowChange 和 RowData，以及普通行事件与事务/DDL 事件的解析边界；读取连接和过滤范围见 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>)。
+- 消息格式、字段契约和 DELETE 前值见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；事务和特殊事件处置见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 本文依据 Canal 1.1.7 源码静态核对，不表示实际发行包已经部署或解析结果已经验证。
 
 ## 2 面试口述精炼版本
@@ -18,11 +18,11 @@ Canal 先把读取到的 Binlog 事件表示为 Entry。Entry 的 Header 保存�
 
 ### 3.1 Entry 结构
 
-Entry 是 Canal 在解析阶段使用的事件容器：
+Entry 是 Canal 在解析阶段使用的事件容器。对于 ROWDATA 类型，storeValue 可解析为 RowChange；事务开始和结束使用对应的事务结构，不应按 RowChange 解码：
 
 - Header：库名、表名、事件类型、日志文件和偏移等来源信息；
 - RowChange：行变更类型及相关事件属性；
-- RowData：一行或多行的列数据，包含变更前列和变更后列；
+- RowData：一行的变更前列和变更后列；一个 RowChange 可包含多个 RowData；
 - 事务或 DDL 事件：可能不包含普通行数据，必须按事件类型单独识别。
 
 依据：[CanalEntry（Canal 1.1.7）](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/CanalEntry.java)。这部分只说明解析对象，不把 Entry 直接等同于 RocketMQ 消息或 ES 文档。
@@ -31,16 +31,16 @@ Entry 是 Canal 在解析阶段使用的事件容器：
 
 INSERT、UPDATE、DELETE 的行数据会进入后续消息转换。新增和更新需要保留同次变更的行后数据及业务 `version`；DELETE 需要保留删除前的 `consume_id`、原始 `create_time` 等定位信息，具体字段输出由 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 定义。
 
-多行事件可能在后续按行或按分区拆成多条消息。拆分后如果没有额外保存源行序号，文件和偏移不能单独区分同一原始事件中的每一行；因此不能未经核对就用 MQ messageId、Canal batchId 或拆分后下标代替稳定事件身份。
+多行事件的源坐标与行身份边界见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；事务与特殊事件的处理归 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
 
 ### 3.3 解析后的交接
 
 Entry 解析完成后才进入消息格式转换和分区发送，顺序如下：
 
-1. 读取和过滤由 [Binlog读取与过滤范围](<./016_ES改造_Canal Server_Binlog读取与过滤范围.md>) 负责；
+1. 读取和过滤由 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>) 负责；
 2. 本文将事件解析为 Entry、RowChange 和 RowData；
 3. FlatMessage JSON 和二进制封装的字段边界由 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 负责；
-4. Canal 内置生产端转换、分区和发送由 [Binlog发送到RocketMQ核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>) 负责。
+4. Canal 内置生产端转换、分区和发送由 [RocketMQ生产端实现](<./020_ES改造_Canal Server_RocketMQ生产端实现.md>) 负责。
 
 ## 4 参考文章与项目设计的区别
 
@@ -51,10 +51,11 @@ Entry 解析完成后才进入消息格式转换和分区发送，顺序如下�
 ## 5 待确认或待验证事项
 
 - 实际发行包是否保留每类 Entry 的事务标记、DDL 信息和完整来源坐标？
-- 多行 INSERT/UPDATE 的 `data`、`old`、`version` 与源行是否正确对应？
-- DDL、TRUNCATE、主键变更和未知事件进入 Entry 后由哪个阶段处置？
+- 解析结果能否区分 ROWDATA、TRANSACTIONBEGIN、TRANSACTIONEND 和 DDL？处置策略见事务专题。
 
 ## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
 
 本文按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 整理，已移除读取起点、过滤配置和 RocketMQ 发布细节，只保留 Entry 解析及其交接边界。未执行 Canal、MySQL、RocketMQ 或 ES 联调。
 

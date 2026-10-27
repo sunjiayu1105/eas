@@ -1,10 +1,10 @@
-# 016_ES改造_Canal Server_Binlog读取与过滤范围
+# 015_ES改造_Canal Server_源库连接与Binlog过滤
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 如何连接两个 MySQL 源库、确定首次读取起点并按库表过滤 Binlog；Entry 结构见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)。
+- 本文只说明 Canal Server 如何连接两个 MySQL 源库、确定首次读取起点并按库表过滤 Binlog；Entry 结构见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)。
 - 项目采用一个 Canal Server 进程承载 `db0`、`db1` 两个 destination；每个 destination 独立维护源库连接、过滤规则、GTID 起点和本地进度。
 - 本文记录设计和 Canal 1.1.7 源码静态核对，不表示实际配置已经加载或恢复流程已经演练。
 
@@ -51,9 +51,9 @@ Canal 原生 MQ 工作线程从嵌入式 Server 获取批次时使用空过滤�
 
 1. destination 建立源库连接并加载过滤范围；
 2. Canal 从首次 GTID 基线或已有本地位点继续读取；
-3. 读取结果交给 Entry 解析，见 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>)；
+3. 读取结果交给 Entry 解析，见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)；
 4. 消息格式和字段边界由 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 说明；
-5. 内置生产端发送和批次确认分别见 [Binlog发送到RocketMQ核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>) 与 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
+5. 内置生产端发送和批次确认分别见 [RocketMQ生产端实现](<./020_ES改造_Canal Server_RocketMQ生产端实现.md>) 与 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
 
 ## 4 参考文章与项目设计的区别
 
@@ -68,6 +68,8 @@ Canal 原生 MQ 工作线程从嵌入式 Server 获取批次时使用空过滤�
 - 首次 GTID 基线、已有本地位点和位点异常时的恢复行为是否符合实际发行包？
 
 ## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
 
 本文按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 整理，已将“日志读取与变更解析”拆成读取/过滤职责；Entry、消息格式、发送确认和恢复内容分别保留在后续专题文档中。未执行 Canal、MySQL、RocketMQ 或 ES 联调。
 

@@ -1,15 +1,14 @@
-# 022_ES改造_Canal Server_进度确认与单机恢复
+# 022_ES改造_Canal Server_本地位点与单机恢复
 
-以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。本文是 Canal Server 写入链路的拆分总览；三个独立文档分别说明日志读取与解析、RocketMQ 发布与事务边界、进度确认与单机恢复。设计、实现和验证状态继续按原文边界说明。
+以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。本文只说明本地位点、人工重启和主机文件故障恢复。
 
 ## 1 适用规则
 
 本页沿用 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>) 的“已确认规则”；本页仅展开当前知识点直接需要的处理过程、边界和待验证事项。
 
-
 ## 2 面试口述精炼版本
 
-### 进度与恢复
+**进度与恢复**
 
 读取位置、Canal 批次确认、本地持久化位点、RocketMQ 消费位点和 ES 处理状态分别表示不同阶段。单机故障后要分别核对两个 destination 的位点、binlog 连续性和 MQ 积压；无法确认可靠起点时暂停，不能直接跳到最新 GTID。恢复效果仍需演练验证。
 
@@ -21,7 +20,7 @@
 
 本文采用 `file-instance.xml` 本地位点模板，按 destination 分别保存可恢复进度。原生生产端的提交回调通过内部 `ack` 更新消费游标，本地元数据落盘是另一个阶段；读取位置、内存游标和本地持久化游标不能混为一谈。具体文件路径、刷新时机与 destination/clientId 的对应关系须按 Canal 1.1.7 实际发行包核验。
 
-发送状态风险见 4.3。消息已进入 MQ、ES 已写入或本地文件存在，都不能单独证明 Canal 已可靠保存恢复进度；故障前已处理但尚未落盘的部分可能重放，具体范围需联调验证，下游必须处理重复和旧事件。
+发送状态风险见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。消息已进入 MQ、ES 已写入或本地文件存在，都不能单独证明 Canal 已可靠保存恢复进度；故障前已处理但尚未落盘的部分可能重放，具体范围需联调验证，下游必须处理重复和旧事件。
 
 #### 3.1.2 人工重启恢复
 
@@ -37,33 +36,9 @@
 
 本地位点依赖保存文件的主机和存储。主机或磁盘故障导致位点不可读时，需要先核对能否恢复原进度及必要元数据；不能在另一台主机直接按最新 GTID 启动，也不能默认退回导入前基线。备份、文件恢复和人工迁移步骤仍需实现依据与演练，当前方案不承诺自动切换、零中断或零丢失。
 
-### 3.2 监控与异常边界
+监控与完整验收清单见 [监控与验收](<./023_ES改造_Canal Server_监控与验收.md>)。
 
-建议监控单机 Server 及 db0、db1 两个通道：
-
-- Server 进程存活、两个 destination 的连接状态和重启次数；
-- binlog 读取延迟、Server 内置生产端到 RocketMQ 的发布延迟和积压；
-- RocketMQ 发送失败、重试次数、消息重复和位点恢复；
-- Canal Server 本地位点保存状态、文件可读性和存储空间；
-- MySQL binlog 剩余保留窗口。
-- RocketMQ 最早可读消息与未消费位点的距离、剩余留存窗口及容量；阈值须结合实际 Broker 确认。
-
-日志记录不等于告警已送达，进程启动成功也不等于位点已经连续恢复。涉及本地位点丢失或损坏、binlog 过期、消息格式异常或持续投递失败时，应暂停对应 destination 并人工处理。
-
-### 3.3 Server 侧验收
-
-验收范围包括：
-
-1. 分别验证 db0、db1 的 MySQL 连接、GTID 起点和 16 张表过滤范围。
-2. 分别核对 FlatMessage JSON 和二进制 Entry 的实际封装、UPDATE 前值范围、按键拆行后的源行身份及事务标记缺失；在最终格式中验证消息解析、DDL 隔离、字段转换、发送确认和位点推进。
-3. 注入部分发送成功、非 SEND_OK、超时结果不明、Broker 重启和 Server 重启，验证来源坐标及版本稳定性、可选事件身份、重放、位点恢复，以及下游并发消费时的旧版本拒绝。
-4. 模拟 Server 进程故障及本地位点丢失、损坏或不可读，核对两个通道的中断范围、人工恢复、本地持久化位点与日志连续性、重复投递和积压追赶；无法核对可靠起点时暂停，不能直接跳到最新位置。
-5. 分别核对 MySQL binlog 与 RocketMQ 消息留存窗口，覆盖各自读取通道的暂停、修复和追赶；模拟 MQ 未消费消息过期，验证发现缺口后暂停复核，不能靠常规重启跳过。
-6. 将代表性 INSERT、UPDATE 事件交给 009 的 ES 写入服务，另行核对 DELETE 事件的消息状态、对账和 ILM 删除边界；不能把 DELETE 当作 ES 逐条删除请求验证。
-
-上述内容是待执行验收要求，不代表当前环境已经部署或测试通过。
-
-### 3.4 版本核对依据与边界
+### 3.2 版本核对依据与边界
 
 - [Canal 1.1.7 canal.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/canal.properties)及 [instance.properties](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/example/instance.properties)：已静态核对配置键、GTID 属性和默认 `file-instance.xml` 入口；[file-instance.xml](https://github.com/alibaba/canal/blob/canal-1.1.7/deployer/src/main/resources/spring/file-instance.xml) 的本地落盘与恢复行为仍须按实际发行包核验。
 - [Canal 1.1.7 Message](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/Message.java)、[CanalEntry](https://github.com/alibaba/canal/blob/canal-1.1.7/protocol/src/main/java/com/alibaba/otter/canal/protocol/CanalEntry.java)及 [MysqlEventParser](https://github.com/alibaba/canal/blob/canal-1.1.7/parse/src/main/java/com/alibaba/otter/canal/parse/inbound/mysql/MysqlEventParser.java)：消息模型、行事件解析和 slaveId 生成路径；原生 RocketMQ 生产路径仍需结合发行包核验。
@@ -84,11 +59,24 @@
 | RocketMQ 消费位点 | 消费者已确认的消息范围 | ES 文档处理结果 |
 | ES 处理状态 | 下游对具体写入结果的记录 | Canal 源日志已经安全交接 |
 
-增量校验应保存实际接收的消息和事件，不应假设一条 RocketMQ 消息就是一笔完整 MySQL 事务。需要按事务校验时，先确认消息是否保留事务边界，或由消费端根据可靠事件重组；重组失败应保留异常。校验进度按实际保存的消息、事件范围和完成状态推进，不能直接使用 Canal `batchId` 代替可恢复的业务进度。
-
-发生部分发送、重试或重复消息时，校验与 ES 写入都需要依赖业务版本、来源信息和幂等规则处理，不能把消息重复直接判断为事务丢失或自动回滚。
+消费位点和 ES 处理结果不能代替源日志恢复起点；增量校验具体采用哪些业务进度和事件信息见下方关联文档。
 
 ## 5 关联文档
 
-- [RocketMQ 发布与 Canal 批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)
-- [增量校验流程与差异处理](<./045_ES改造_ES_增量校验流程与差异处理.md>)
+- [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)
+- [ES改造_ES_增量校验流程与差异处理](<./045_ES改造_ES_增量校验流程与差异处理.md>)
+
+## 6 待确认或待验证事项
+
+- 各 destination 的文件路径、刷新时机、权限及 clientId 映射是否与实际发行包一致？
+- 位点损坏或日志过期时能否恢复可靠起点？未确认前应停止恢复。
+
+## 7 参考文章与项目设计的区别
+
+**参考文章：** 演示发送和写入效果。
+
+**当前项目：** 单机本地位点依赖文件和存储恢复，需额外演练，不能据文章承诺自动接管或零丢失。
+
+## 8 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。

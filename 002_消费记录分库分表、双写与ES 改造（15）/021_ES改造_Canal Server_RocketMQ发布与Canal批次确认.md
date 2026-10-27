@@ -4,7 +4,7 @@
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明消息进入 RocketMQ 后的发布结果、Canal 批次确认、回滚和可靠性边界；读取与过滤见 [Binlog读取与过滤范围](<./016_ES改造_Canal Server_Binlog读取与过滤范围.md>)，消息格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)，发送实现见 [Binlog发送到RocketMQ核心实现](<./020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md>)。
+- 本文只说明消息进入 RocketMQ 后的发布结果、Canal 批次确认、回滚和可靠性边界；读取与过滤见 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>)，消息格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)，发送实现见 [RocketMQ生产端实现](<./020_ES改造_Canal Server_RocketMQ生产端实现.md>)。
 - 两个 destination 使用固定 topic，共用同一消息契约和消费逻辑；`partitionHash` 源列为 `consume_id`。
 - 本文描述 Canal 1.1.7 源码静态核对和设计边界，不表示 Broker 持久化、批次确认或故障恢复已经运行验证。
 
@@ -54,13 +54,13 @@ canalMQProducer.send(destination, message, new Callback() {
 
 一个 Canal 批次可能拆成多个分区任务。部分分区已经成功、其他分区异常时，Canal 批次可能回滚，但已经进入 RocketMQ 的消息不会自动撤回，后续重试可能重复发送；超时还可能造成结果不明。消费端需要依靠稳定来源信息、业务版本和幂等规则处理重复及旧事件。
 
-同一个 `consume_id` 是否始终映射到同一队列，取决于 destination 对应 topic、源列值、分区数、队列列表和映射规则均保持稳定。即使进入同一队列，也不能据此保证并发消费完成顺序严格一致。
+队列稳定性与并发消费顺序的区别见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
 
 ### 3.4 事务和阶段边界
 
-Canal `batchId` 是内部读取批次标识，不等于 MySQL 事务编号或 RocketMQ 消息批次。一笔 MySQL 事务可能拆成多条消息并分布到多个队列；事务开始/提交标记是否保留，须以实际消息格式核验。RocketMQ 生产成功、Broker 持久化、MQ 消费确认、ES 写入和 Canal 本地位点落盘分别表示不同状态。
+MySQL 事务与消息边界见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。这里仅区分发送回调和后续状态：提交 Canal 批次不会等待下游 ES 写入；本地元数据可靠落盘是恢复专题需要验证的另一阶段。
 
-下游暂停或 MQ 消息过期时，不能因为源库仍保留 Binlog 就直接断言可以正常补回；应先核对 Canal 位点、MQ 缺口和受控重放范围。详细恢复流程见 [进度确认与单机恢复](<./022_ES改造_Canal Server_进度确认与单机恢复.md>)。
+下游暂停或 MQ 消息过期时，不能因为源库仍保留 Binlog 就直接断言可以正常补回；应先核对 Canal 位点、MQ 缺口和受控重放范围。详细恢复流程见 [本地位点与单机恢复](<./022_ES改造_Canal Server_本地位点与单机恢复.md>)。
 
 ## 4 参考文章与项目设计的区别
 
@@ -73,9 +73,10 @@ Canal `batchId` 是内部读取批次标识，不等于 MySQL 事务编号或 Ro
 - 非 `SEND_OK` 且无异常时是否仍提交 Canal 批次？
 - 部分分区成功、超时或结果不明时，重试和恢复顺序是否符合预期？
 - Broker 持久化、消息留存和消费位点是否覆盖下游暂停与追赶窗口？
-- 事务开始/提交标记是否在最终消息中保留？
 
 ## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
 
 本文按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 整理，已移除与 017、018、020 重复的读取、消息格式和分区实现细节，只保留发布结果、Canal 回调和阶段边界。未执行 Canal、RocketMQ 或 ES 联调。
 
