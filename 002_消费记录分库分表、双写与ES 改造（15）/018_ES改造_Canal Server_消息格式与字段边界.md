@@ -28,16 +28,14 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 可以按“Binlog 事件 → Canal Entry → FlatMessage JSON → RocketMQ 消费端”的顺序理解本章。这里的 `Entry`、`RowChange`、`RowData` 是 Canal 内部的数据结构，`FlatMessage` 是发送前组织出的消息对象，FlatMessage JSON 是序列化后的消息格式；它们不是彼此独立的服务。
 
-| 环节 | 输入 | 关键方法/入口 | 主要处理 | 输出 |
+| 环节 | 输入 | 关键方法/入口 | 方法职责 | 输出 |
 | --- | --- | --- | --- | --- |
 | MySQL Binlog | 已提交的 INSERT、UPDATE、DELETE 等行变化 | MySQL Binlog 写入机制 | 将数据库行变化写入 Binlog | Binlog 二进制事件 |
-| Canal Server | Binlog 二进制事件 | `CanalRocketMQProducer.send(...)`、`MQMessageUtils.buildMessageData(...)` | 解码并准备 `EntryRowData[]`，其中包含 `Entry`、`RowChange`、`RowData` | Canal 事件数据 |
-| FlatMessage 转换 | `EntryRowData[]` | `MQMessageUtils.messageConverter(...)` | 为每个事件创建 `FlatMessage`，按 INSERT/UPDATE/DELETE 组织 `data` 和 `old` | `FlatMessage` 对象 |
-| RocketMQ 分区与封装 | `FlatMessage` 对象 | `MQMessageUtils.messagePartition(...)`、`JSON.toJSONBytes(...)` | 按 `data` 中的行计算分区，保持 `data[i]` 与 `old[i]` 对应，再序列化为 JSON | FlatMessage JSON 字节和 RocketMQ `Message` |
-| RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 将消息写入指定 topic 和队列；Broker 保存消息并提供消费进度 | RocketMQ 中可供消费的消息 |
+| Canal Server | Binlog 二进制事件 | `CanalRocketMQProducer.send(...)`、`MQMessageUtils.buildMessageData(...)` | `send(...)` 选择消息格式和发送路径；`buildMessageData(...)` 将批次中的 Entry 预处理成 `EntryRowData[]` | Canal 事件数据 |
+| FlatMessage 转换 | `EntryRowData[]` | `MQMessageUtils.messageConverter(...)` | 为每个事件创建 `FlatMessage`，写入事件元数据，并遍历多条 `RowData` 组织 `data`；UPDATE 额外组织变化列对应的 `old` | `FlatMessage` 对象 |
+| RocketMQ 分区与封装 | `FlatMessage` 对象 | `MQMessageUtils.messagePartition(...)`、`JSON.toJSONBytes(...)` | `messagePartition(...)` 按行计算分区并保持 `data[i]` 与 `old[i]` 对应；`JSON.toJSONBytes(...)` 将 FlatMessage 序列化为保留 null 字段的 JSON 字节 | FlatMessage JSON 字节和 RocketMQ `Message` |
+| RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 调用 RocketMQ 生产客户端，将消息发送到指定 topic 和队列，并处理发送结果 | RocketMQ 中可供消费的消息 |
 | RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 项目消费端 JSON 解析入口（具体方法待确认） | 解析 `type`、`data` 等字段并分派业务处理 | 例如写入或删除 ES 的业务操作 |
-
-表中的方法名来自 Canal 1.1.7 生产端源码；其中 `messageConverter(...)` 负责组装 FlatMessage，`messagePartition(...)` 负责按行分区，`JSON.toJSONBytes(...)` 负责序列化，`sendMessage(...)` 负责发送。
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
 
