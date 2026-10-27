@@ -10,7 +10,7 @@
 - 本文按消息体、字段、操作类型、完整行和重复处理的顺序说明消息契约；首次出现的术语就地解释。
 - 当前项目要求 UPDATE 的 `data` 保证为完整更新后行；只有通过完整性校验的消息，才能按完整文档覆盖写入 ES。该要求的配置和运行效果仍需验证。
 - 当前 ES 同步允许重复处理，通过业务版本控制防止旧数据覆盖新数据，不为避免重复写入而引入独立事件 ID；实际版本校验和冲突处理仍需验证。
-- 面试口述按“消息从哪里来 → 消息体包含什么 → 消费端如何处理”的顺序展开，避免直接堆叠 `body`、`data`、`old` 和完整行等概念。
+- 口述版只介绍 `database`、`table`、`type`、`data`、`old` 这几个核心字段，不补充 `isDdl` 等非核心字段。
 
 
 
@@ -19,7 +19,7 @@
 
 **消息体采用 FlatMessage JSON**
 
-Canal Server 读取 MySQL 行变化后，将其组装为 FlatMessage 并序列化为 JSON，作为 RocketMQ 消息的 `body`。消费端收到一个 FlatMessage JSON 对象，其中的 `data` 数组可以包含同一张表、同一种操作类型的多条行变更。INSERT 和 UPDATE 的 `data` 表示行后值，DELETE 的 `data` 表示行前值，UPDATE 的 `old` 保存变化字段的旧值。消费端逐行处理 `data`，UPDATE 只有在完整行校验通过后才能覆盖写入 ES。配置加载和真实消息仍待验证，字段与示例见[详细方案](#3-详细方案)。
+Canal Server 读取 MySQL 行变化后，将其组装为 FlatMessage 并序列化为 JSON，作为 RocketMQ 消息的 `body`。消费端解析 JSON 后，`database` 和 `table` 标识来源库表，`type` 标识 INSERT、UPDATE 或 DELETE，`data` 保存行数据，`old` 保存 UPDATE 变化字段的旧值。`data` 可以包含同一操作类型的多条行变更；INSERT、UPDATE 使用行后值，DELETE 使用行前值。项目要求 UPDATE 的 `data` 通过完整性校验后再覆盖写入 ES。
 
 ## 3 详细方案
 
@@ -267,6 +267,14 @@ private void doHandler(ElasticMessageTypeEnum type,
 已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
 
 本轮按“消息体与行数据 → 多行消息示例 → 字段说明 → 操作类型 → UPDATE 完整行 → 重复消息版本控制”的顺序复核并优化了承接关系；未改变已确认的消息契约、业务规则和验证边界。
+
+## 6 复核记录
+
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
+
+本轮按“消息体与行数据 → 多行消息示例 → 字段说明 → 操作类型 → UPDATE 完整行 → 重复消息版本控制”的顺序复核并优化了承接关系；未改变已确认的消息契约、业务规则和验证边界。
+
+本轮根据用户确认，将口述版调整为“消息来源 → 消息体结构 → 消费端处理”的表达顺序，并将该组织规则加入“已确认规则”。
 
 ## 6 复核记录
 
