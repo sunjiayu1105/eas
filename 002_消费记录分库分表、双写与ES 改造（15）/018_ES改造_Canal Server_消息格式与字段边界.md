@@ -37,7 +37,7 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 | RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 调用 RocketMQ 生产客户端，将消息发送到指定 topic 和队列，并处理发送结果 | 在当前批次处理链中执行，发送结果通过回调影响批次确认 | RocketMQ 中可供消费的消息 |
 | RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 项目消费端 JSON 解析入口（具体方法待确认） | 解析 `type`、`data` 等字段并分派业务处理 | 消费端线程/容器模型待结合项目代码确认 | 例如写入或删除 ES 的业务操作 |
 
-从执行模型看，这条链路不是“每隔几秒执行一次”的定时任务。`CanalMQStarter.start(...)` 启动后，会为每个 destination 创建 MQ worker；`worker(...)` 在常驻循环中调用 `getWithoutAck(...)` 拉取批次。只有拉到有效批次后，才会调用生产端的转换、分区和发送方法；没有数据时由 Canal 的拉取配置和等待机制决定下一次获取时机。生产端分区发送可以使用线程池并行处理，但这仍属于当前批次的发送过程，不是独立的定时任务。消费端具体由哪种线程或容器调度，仍需结合项目消费服务代码确认。
+从执行模型看，`worker` 是 Canal Server 启动的自动后台工作线程，但不是“每隔几秒执行一次”的定时任务。`CanalMQStarter.start(...)` 通过线程池启动每个 destination 对应的 worker；`worker(...)` 在常驻循环中调用 `getWithoutAck(...)` 拉取批次。有数据时继续执行转换、分区和发送，没有数据时按照 Canal 的拉取配置和等待机制继续等待。服务停止或 destination 停止时，worker 才退出循环。生产端分区发送可以使用线程池并行处理，但这仍属于当前批次的发送过程，不是独立的定时任务。消费端具体由哪种线程或容器调度，仍需结合项目消费服务代码确认。
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
 
