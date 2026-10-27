@@ -38,31 +38,6 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 因此，每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
 
-**FlatMessage 中有多条数据时，RocketMQ 如何处理**
-
-假设转换后的 FlatMessage JSON 如下，`data` 中有两条 UPDATE 行，`old` 按同一下标保存对应的旧值：
-
-```json
-{
-  "type": "UPDATE",
-  "data": [
-    {"consume_id": "c-1001", "amount": "12.00"},
-    {"consume_id": "c-1002", "amount": "22.00"}
-  ],
-  "old": [
-    {"amount": "10.00"},
-    {"amount": "20.00"}
-  ]
-}
-```
-
-生产端先根据项目约定计算分区键，再决定消息如何写入 RocketMQ：
-
-1. 如果两行被计算到同一个队列，可以把上面的完整 JSON 作为**一条 RocketMQ 消息**发送。Broker 保存一条消息，消费端取到这条消息后解析 `data` 数组，并循环处理两行；`data[0]` 必须继续和 `old[0]` 配对，`data[1]` 必须继续和 `old[1]` 配对。
-2. 如果两行被计算到不同队列，生产端可以按分区结果拆成**两条 RocketMQ 消息**。第一条只携带 `c-1001` 对应的 `data` 和 `old`，第二条只携带 `c-1002` 对应的 `data` 和 `old`。消费端此时分别处理两条消息，但每条消息仍要保留行后值与旧值的对应关系。
-
-RocketMQ 的职责是接收生产端发送的消息、按 topic 和队列保存消息，并向消费者提供消息读取和消费进度管理；它不会把一条 JSON 内的 `data` 数组自动解析成多条业务记录，也不会替业务代码合并或补齐字段。是否拆分、如何计算分区键以及一条消息最终包含几行，由 Canal 生产端的转换和分区逻辑决定；实际发行包、项目配置和真实消息仍需验证。
-
 以一条 UPDATE 为例，数据会依次表现为：
 
 ```text
@@ -145,7 +120,31 @@ FlatMessage 对象 → FlatMessage JSON → RocketMQ 消息体
 
 完整性满足后，消费端可以读取 `data` 的完整行，按业务主键和 `version` 判断新旧，再用完整行覆盖写入 ES；不需要依赖 `old` 合并字段。
 
-### 3.4 拆分后的对应关系
+### 3.4 多行 FlatMessage 与 RocketMQ 消息对应关系
+
+FlatMessage 的 `data` 可以包含多条行变更。生产端先按 `data` 中的行计算分区，再决定这些行进入一个队列还是多个队列；RocketMQ 只保存和分发消息，不解析 JSON 内的业务数组。
+
+假设转换后的 FlatMessage JSON 如下，`data` 中有两条 UPDATE 行，`old` 按同一下标保存对应的旧值：
+
+```json
+{
+  "type": "UPDATE",
+  "data": [
+    {"consume_id": "c-1001", "amount": "12.00"},
+    {"consume_id": "c-1002", "amount": "22.00"}
+  ],
+  "old": [
+    {"amount": "10.00"},
+    {"amount": "20.00"}
+  ]
+}
+```
+
+如果两行被计算到同一个队列，可以把上面的完整 JSON 作为一条 RocketMQ 消息发送。Broker 保存一条消息，消费端取到后解析 `data` 数组并循环处理两行；`data[0]` 必须继续和 `old[0]` 配对，`data[1]` 必须继续和 `old[1]` 配对。
+
+如果两行被计算到不同队列，生产端可以按分区结果拆成两条 RocketMQ 消息。第一条只携带 `c-1001` 对应的 `data` 和 `old`，第二条只携带 `c-1002` 对应的 `data` 和 `old`。消费端分别处理两条消息，但每条消息仍要保留行后值与旧值的对应关系。
+
+RocketMQ 的处理边界是：生产端把消息写入指定 topic 的队列，Broker 持久化消息并维护队列中的位置，消费者按消费组读取消息并提交消费进度。RocketMQ 不会自动把一条 JSON 内的 `data` 数组拆成多条业务记录，也不会替业务代码合并或补齐字段。是否拆分、如何计算分区键以及一条消息最终包含几行，由 Canal 生产端的转换和分区逻辑决定；实际发行包、项目配置和真实消息仍需验证。
 
 分区代码按 `data` 中的行计算分区，并用同一下标取对应的 `old`；二进制按键分区复制对应 RowData 后重新分组。源码体现了配对方式，但项目仍须验证多行更新、空值、列集合和业务版本在拆分后的对应关系。
 
