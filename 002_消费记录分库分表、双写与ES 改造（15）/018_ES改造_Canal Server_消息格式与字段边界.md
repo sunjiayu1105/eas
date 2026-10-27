@@ -28,14 +28,16 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 可以按“Binlog 事件 → Canal Entry → FlatMessage JSON → RocketMQ 消费端”的顺序理解本章。这里的 `Entry`、`RowChange`、`RowData` 是 Canal 内部的数据结构，`FlatMessage` 是发送前组织出的消息对象，FlatMessage JSON 是序列化后的消息格式；它们不是彼此独立的服务。
 
-| 环节 | 输入 | 关键方法/入口 | 方法职责 | 输出 |
-| --- | --- | --- | --- | --- |
-| MySQL Binlog | 已提交的 INSERT、UPDATE、DELETE 等行变化 | MySQL Binlog 写入机制 | 将数据库行变化写入 Binlog | Binlog 二进制事件 |
-| Canal Server | Binlog 二进制事件 | `CanalRocketMQProducer.send(...)`、`MQMessageUtils.buildMessageData(...)` | `send(...)` 选择消息格式和发送路径；`buildMessageData(...)` 将批次中的 Entry 预处理成 `EntryRowData[]` | Canal 事件数据 |
-| FlatMessage 转换 | `EntryRowData[]` | `MQMessageUtils.messageConverter(...)` | 为每个事件创建 `FlatMessage`，写入事件元数据，并遍历多条 `RowData` 组织 `data`；UPDATE 额外组织变化列对应的 `old` | `FlatMessage` 对象 |
-| RocketMQ 分区与封装 | `FlatMessage` 对象 | `MQMessageUtils.messagePartition(...)`、`JSON.toJSONBytes(...)` | `messagePartition(...)` 按行计算分区并保持 `data[i]` 与 `old[i]` 对应；`JSON.toJSONBytes(...)` 将 FlatMessage 序列化为保留 null 字段的 JSON 字节 | FlatMessage JSON 字节和 RocketMQ `Message` |
-| RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 调用 RocketMQ 生产客户端，将消息发送到指定 topic 和队列，并处理发送结果 | RocketMQ 中可供消费的消息 |
-| RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 项目消费端 JSON 解析入口（具体方法待确认） | 解析 `type`、`data` 等字段并分派业务处理 | 例如写入或删除 ES 的业务操作 |
+| 环节 | 输入 | 关键方法/入口 | 方法职责 | 执行方式/触发 | 输出 |
+| --- | --- | --- | --- | --- | --- |
+| MySQL Binlog | 已提交的 INSERT、UPDATE、DELETE 等行变化 | MySQL Binlog 写入机制 | 将数据库行变化写入 Binlog | 随事务提交产生事件，不是本项目定时任务 | Binlog 二进制事件 |
+| Canal Server | Binlog 二进制事件 | `CanalMQStarter.start(...)`、`worker(...)`、`getWithoutAck(...)` | 为每个 destination 启动 MQ worker；worker 拉取 Canal 批次并在批次非空时进入生产端处理 | 常驻 worker 循环拉取，不是固定时间间隔的定时任务 | Canal 事件数据 |
+| FlatMessage 转换 | `EntryRowData[]` | `CanalRocketMQProducer.send(...)`、`MQMessageUtils.buildMessageData(...)`、`MQMessageUtils.messageConverter(...)` | `send(...)` 选择消息格式和发送路径；`buildMessageData(...)` 准备 `EntryRowData[]`；`messageConverter(...)` 创建 FlatMessage 并组织 `data`、`old` | 每次 `getWithoutAck(...)` 取得有效批次后执行 | `FlatMessage` 对象 |
+| RocketMQ 分区与封装 | `FlatMessage` 对象 | `MQMessageUtils.messagePartition(...)`、`JSON.toJSONBytes(...)` | `messagePartition(...)` 按行计算分区并保持 `data[i]` 与 `old[i]` 对应；`JSON.toJSONBytes(...)` 将 FlatMessage 序列化为保留 null 字段的 JSON 字节 | 当前批次处理链中的同步步骤；分区发送可使用生产端线程池 | FlatMessage JSON 字节和 RocketMQ `Message` |
+| RocketMQ 发送 | RocketMQ `Message` | `sendMessage(...)` | 调用 RocketMQ 生产客户端，将消息发送到指定 topic 和队列，并处理发送结果 | 在当前批次处理链中执行，发送结果通过回调影响批次确认 | RocketMQ 中可供消费的消息 |
+| RocketMQ 消费端 | 消息体中的 FlatMessage JSON | 项目消费端 JSON 解析入口（具体方法待确认） | 解析 `type`、`data` 等字段并分派业务处理 | 消费端线程/容器模型待结合项目代码确认 | 例如写入或删除 ES 的业务操作 |
+
+从执行模型看，这条链路不是“每隔几秒执行一次”的定时任务。`CanalMQStarter.start(...)` 启动后，会为每个 destination 创建 MQ worker；`worker(...)` 在常驻循环中调用 `getWithoutAck(...)` 拉取批次。只有拉到有效批次后，才会调用生产端的转换、分区和发送方法；没有数据时由 Canal 的拉取配置和等待机制决定下一次获取时机。生产端分区发送可以使用线程池并行处理，但这仍属于当前批次的发送过程，不是独立的定时任务。消费端具体由哪种线程或容器调度，仍需结合项目消费服务代码确认。
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
 
