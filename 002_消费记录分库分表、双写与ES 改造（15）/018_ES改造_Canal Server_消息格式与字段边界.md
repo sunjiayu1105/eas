@@ -41,6 +41,65 @@ FlatMessage JSON 可以包含多条行变更。多条行变更放在同一个 `d
 - `ts`：FlatMessage 转换时的系统时间。
 - `gtid`：来源 Header 中的 GTID（如果存在）；不保证每条消息都有可用值。
 
+**多条行变更的 FlatMessage JSON 示例**
+
+下面是一条包含三条 UPDATE 行变更的 FlatMessage JSON。`data` 中每个对象代表一条更新后的消费记录，`old` 中相同下标的对象保存该记录发生变化的旧字段：
+
+```json
+{
+  "database": "eas",
+  "table": "consume_record_202610",
+  "type": "UPDATE",
+  "isDdl": false,
+  "pkNames": ["consume_id"],
+  "es": 1761532800000,
+  "ts": 1761532800012,
+  "gtid": "uuid:100",
+  "data": [
+    {
+      "consume_id": "c-1002",
+      "status": "成功",
+      "version": 2,
+      "create_time": "2026-10-27 09:00:00"
+    },
+    {
+      "consume_id": "c-1004",
+      "status": "成功",
+      "version": 5,
+      "create_time": "2026-10-27 09:05:00"
+    },
+    {
+      "consume_id": "c-1005",
+      "status": "成功",
+      "version": 8,
+      "create_time": "2026-10-27 09:10:00"
+    }
+  ],
+  "old": [
+    {
+      "status": "异常（未确定）",
+      "version": 1
+    },
+    {
+      "status": "异常（未确定）",
+      "version": 4
+    },
+    {
+      "status": "处理中",
+      "version": 7
+    }
+  ]
+}
+```
+
+消费端可以按下标逐条理解这组数据：
+
+- `data[0]` 与 `old[0]`：`c-1002` 的 status 从“异常（未确定）”变为“成功”，版本从 `1` 变为 `2`。
+- `data[1]` 与 `old[1]`：`c-1004` 的 status 从“异常（未确定）”变为“成功”，版本从 `4` 变为 `5`。
+- `data[2]` 与 `old[2]`：`c-1005` 的 status 从“处理中”变为“成功”，版本从 `7` 变为 `8`。
+
+这个示例说明：一条 RocketMQ 消息可以承载一个 FlatMessage JSON，而这个 FlatMessage 的 `data` 可以承载多条行变更。`old` 的数组长度和顺序需要与 `data` 保持对应；如果生产端按分区拆消息，则每条拆分后的消息仍要保留自己对应的 `data` 和 `old`。示例中的时间、GTID、库表名和字段值仅用于说明格式，是否在运行消息中完整出现仍需实际消息验证。
+
 因此，消费端的关系可以先记成：`RocketMQ Message body → 一个 FlatMessage JSON → data 中的一条或多条行变更`。至于运行实例是否包含上述全部字段、字段为空时如何处理以及消息是否实际按分区拆分，仍需用真实 RocketMQ 消息验证。
 
 ## 3 详细方案
@@ -444,3 +503,5 @@ private void doHandler(ElasticMessageTypeEnum type,
 本轮将原流程表改为纯 Markdown 的分步骤列表，移除 HTML 换行标签，并让每个步骤、每条记录和每个处理结果单独换行展示，便于初学者逐项跟踪数据变化。
 
 本轮补充 RocketMQ 消费端消息格式总结，说明一个 RocketMQ 消息与一个 FlatMessage JSON 的对应关系、一个 FlatMessage 中多条 `data` 行变更的情况，以及核心字段含义；未执行真实 RocketMQ 消费联调。
+
+本轮补充包含三条 UPDATE 行变更的 FlatMessage JSON，并说明 `data[i]` 与 `old[i]` 的逐条对应关系；示例字段和时间值不代表真实运行消息。
