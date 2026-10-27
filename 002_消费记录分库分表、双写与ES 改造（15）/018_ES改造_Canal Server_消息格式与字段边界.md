@@ -45,14 +45,14 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 | 步骤 | 执行者 | 什么时候执行 | 拿到什么 | 具体做什么 | 本例中的数据变化 | 产出什么 | 交给谁 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | `c-1001` 执行 INSERT；`c-1002` 执行 UPDATE，status 从“异常（未确定）”变为“成功” | Binlog 二进制事件 | Canal Server |
-| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | 拉到包含两个 Entry 的批次：一个 INSERT、一个 UPDATE | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
-| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 保留两个 Entry 及其各自的 `RowChange`：INSERT 和 UPDATE | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
-| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 生成一个 INSERT FlatMessage 和一个 UPDATE FlatMessage；UPDATE 的 `data` 是成功，`old` 是异常（未确定） | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
-| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | 分别得到 INSERT JSON 和 UPDATE JSON；两类消息可进入相同或不同队列 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
-| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | 分别发送 INSERT 消息和 UPDATE 消息 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
-| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可以分别读到 INSERT 和 UPDATE 两类 JSON | 消费端可读取的消息 | RocketMQ 消费端 |
-| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE 分派处理 | 根据 `type` 分别新增 `c-1001`、更新 `c-1002` 的 ES 文档 | ES 中的新增、更新或删除结果 | ES |
+| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | `c-1001` 执行 INSERT；`c-1002`、`c-1004` 执行 UPDATE，status 从“异常（未确定）”变为“成功”；`c-1003` 执行 DELETE | Binlog 二进制事件 | Canal Server |
+| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | 拉到包含至少三个 Entry 的批次：INSERT、UPDATE、DELETE；UPDATE Entry 内有 `c-1002`、`c-1004` 两条行变化 | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
+| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 保留三个 Entry 及其各自的 `RowChange`：INSERT、UPDATE、DELETE；每个 Entry 再携带对应的 RowData | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
+| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 生成一个 INSERT FlatMessage、一个包含两行的 UPDATE FlatMessage 和一个 DELETE FlatMessage；UPDATE 的 `data` 是两个更新后状态，`old` 是对应的两个更新前状态 | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
+| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 UPDATE 的 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | 分别得到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 内的两行可能进入同一条消息，也可能按分区拆成多条 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
+| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | 发送 INSERT、UPDATE、DELETE 三类消息；UPDATE 是否一条或多条取决于分区结果 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
+| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可以分别读到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 可能是一条或多条消息 | 消费端可读取的消息 | RocketMQ 消费端 |
+| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE、DELETE 分派处理 | 根据 `type` 新增 `c-1001`，更新 `c-1002`、`c-1004`，删除 `c-1003` 的 ES 文档 | ES 中的新增、更新或删除结果 | ES |
 
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
@@ -61,7 +61,7 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 
 每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
 
-上表用两条记录执行不同操作的例子贯穿整个流程；其中 JSON 字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
+上表用四条记录执行三种不同操作的例子贯穿整个流程：一条 INSERT、两条 UPDATE 和一条 DELETE。这样可以同时看到不同 `type` 如何从同一批次中产生，并在消费端分别落到新增、更新和删除处理。JSON 字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
 
 ### 3.2 再看配置开关：决定发送什么格式
 
@@ -314,20 +314,4 @@ private void doHandler(ElasticMessageTypeEnum type,
 
 ## 6 复核记录
 
-本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充 UPDATE 完整行数据的设计约束、`binlog_row_image=FULL` 前置条件、生产端完整性校验和运行验证事项。
-
-本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充参考文章的消息解析代码，并区分其对多条 `data` 的支持与对 `old` 配对规则的未覆盖。
-
-本文由 [java-interview-doc-split](C:/Users/Administrator/.codex/skills/java-interview-doc-split/SKILL.md) 拆分生成；已静态核对 Canal 1.1.7 源码，未执行实际消息样例和联调。
-
-本轮根据用户确认，将当前项目消息格式设计收敛为 FlatMessage JSON；运行配置、消息样例和端到端解析仍未验证。
-
-本轮已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充并复核了 INSERT、UPDATE、DELETE 的 FlatMessage JSON 字段含义示例。
-
-本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，按 Canal 初学者的连续理解顺序调整了口述版和详细方案，并将该编写规则记录到“已确认规则”。
-
-本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，在拆分对应关系中补充多行 UPDATE 的 `data[i]` 与 `old[i]` 示例及分区后的保持规则。
-
-本轮再次执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充 FlatMessage 对象、FlatMessage JSON 与 RocketMQ 消息体之间的关系，并明确示例的精简范围。
-
-本轮继续执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，补充多行 FlatMessage 被拆成多条消息和保留为一条消息发送的对比示例。
+本轮执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，将整条处理链路示例扩展为四条消费记录和三种操作类型，并复核了表格中的 Entry、FlatMessage、RocketMQ 消息及 ES 处理结果对应关系；未执行真实 Canal、RocketMQ 或 ES 联调。
