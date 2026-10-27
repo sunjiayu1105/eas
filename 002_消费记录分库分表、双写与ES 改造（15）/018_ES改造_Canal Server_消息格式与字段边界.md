@@ -65,17 +65,17 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 以下用两条消费记录同时发生状态变化的 UPDATE 作为示例：
 
 ```text
-MySQL：c-1001、c-1002 的 status 都从“异常（未确定）”更新为“成功”
+MySQL：c-1001 执行 INSERT，c-1002 执行 UPDATE（status 从“异常（未确定）”变为“成功”）
     ↓
-Binlog：记录两条行变化
+Binlog：记录一条 INSERT 和一条 UPDATE 行变化
     ↓
-Canal Entry：Header + RowChange(UPDATE) + 两个 RowData
+Canal 批次：包含两个 Entry，分别是 RowChange(INSERT) 和 RowChange(UPDATE)
     ↓
-FlatMessage JSON：data 放两条更新后行，old 按下标放两条记录变化前的 status
+FlatMessage JSON：分别生成 INSERT 和 UPDATE 消息；UPDATE 消息的 data 是更新后行，old 是变化前的 status
     ↓
-RocketMQ：将这段包含两条数据的 JSON 保存并转发
+RocketMQ：分别保存并转发这两类 JSON 消息
     ↓
-消费端：循环读取 data 中的两条完整更新后行，分别写入 ES
+消费端：根据 type 分别处理 INSERT 和 UPDATE，再写入 ES
 ```
 
 这里的 JSON 是消息体示例；实际字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
