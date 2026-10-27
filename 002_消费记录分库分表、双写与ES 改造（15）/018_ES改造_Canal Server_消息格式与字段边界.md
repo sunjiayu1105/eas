@@ -41,31 +41,22 @@ Canal 内部处理的输入是 Entry 和 RowData，发送给 RocketMQ 的输出�
 7. **RocketMQ 保存和投递**：Broker 持久化消息，消费者按消费组读取消息并维护消费进度。RocketMQ 只负责保存和投递消息，不解析 FlatMessage 的 `data` 数组，也不替消费端补齐字段。
 8. **消费端同步 ES**：消费端读取消息体中的 FlatMessage JSON，解析 `type`、`data` 和必要业务字段；对于 UPDATE，使用完整的 `data` 行按业务主键和 `version` 覆盖写入 ES。消费端的具体线程模型和方法名仍需结合项目代码确认。
 
-**用流程表确认每一步的交接**
+**按数据变化跟踪同一批数据**
 
-| 步骤 | 执行者 | 什么时候执行 | 拿到什么 | 具体做什么 | 本例中的数据变化 | 产出什么 | 交给谁 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1. 产生变化 | MySQL | 业务事务提交时 | INSERT、UPDATE、DELETE 行变化 | 将行变化写入 Binlog | `c-1001` 执行 INSERT；`c-1002`、`c-1004` 执行 UPDATE，status 从“异常（未确定）”变为“成功”；`c-1003` 执行 DELETE | Binlog 二进制事件 | Canal Server |
-| 2. 拉取批次 | `CanalMQStarter` 的 worker | 服务启动后持续循环；不是固定周期定时任务 | Canal 中未确认的一批事件 | 调用 `getWithoutAck(...)` 拉取批次；无数据时继续等待 | 拉到包含至少三个 Entry 的批次：INSERT、UPDATE、DELETE；UPDATE Entry 内有 `c-1002`、`c-1004` 两条行变化 | Canal 批次，可能包含多个 Entry 和 RowData | `CanalRocketMQProducer.send(...)` |
-| 3. 准备 Entry | Canal 生产端 | 拉到有效批次后 | Canal 批次 | 调用 `send(...)` 选择发送路径，再调用 `buildMessageData(...)` 准备 `EntryRowData[]` | 保留三个 Entry 及其各自的 `RowChange`：INSERT、UPDATE、DELETE；每个 Entry 再携带对应的 RowData | 包含 `Entry`、`RowChange`、`RowData` 的中间数据 | `messageConverter(...)` |
-| 4. 组装 FlatMessage | `MQMessageUtils.messageConverter(...)` | 每个有效批次进入 FlatMessage 路径时 | `EntryRowData[]` | 按事件类型创建 FlatMessage，把 RowData 组织到 `data`；UPDATE 组织变化字段对应的 `old` | 生成一个 INSERT FlatMessage、一个包含两行的 UPDATE FlatMessage 和一个 DELETE FlatMessage；UPDATE 的 `data` 是两个更新后状态，`old` 是对应的两个更新前状态 | 一个或多个 FlatMessage 对象 | 分区处理或直接序列化 |
-| 5. 分区并序列化 | `messagePartition(...)`、`JSON.toJSONBytes(...)` | 配置分区哈希时先分区；发送前序列化 | FlatMessage 对象 | 按行计算目标队列，保持 UPDATE 的 `data[i]` 与 `old[i]` 对应，再序列化为 JSON 字节 | 分别得到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 内的两行可能进入同一条消息，也可能按分区拆成多条 | FlatMessage JSON 字节 | Canal RocketMQ 生产端 |
-| 6. 构造并发送消息 | Canal RocketMQ 生产端、`sendMessage(...)` | 当前批次 JSON 字节准备完成后 | FlatMessage JSON 字节 | 构造 RocketMQ `Message`，调用 `sendMessage(...)` 写入指定 topic 和队列 | 发送 INSERT、UPDATE、DELETE 三类消息；UPDATE 是否一条或多条取决于分区结果 | Broker 中保存的 RocketMQ 消息 | RocketMQ Broker |
-| 7. 保存和投递 | RocketMQ Broker | 收到生产端消息后 | RocketMQ 消息 | 持久化消息，按消费组提供读取并维护消费进度；不解析业务 JSON | 消费端可以分别读到 INSERT、UPDATE、DELETE 三类 JSON；UPDATE 可能是一条或多条消息 | 消费端可读取的消息 | RocketMQ 消费端 |
-| 8. 同步 ES | 项目消费端 | 消费端读取消息后 | FlatMessage JSON | 解析 `type`、`data` 和业务字段；按 INSERT、UPDATE、DELETE 分派处理 | 根据 `type` 新增 `c-1001`，更新 `c-1002`、`c-1004`，处理 `c-1003` 的删除事件；是否删除 ES 文档由项目消费逻辑决定 | ES 中的新增、更新或删除结果 | ES |
+下面用四条消费记录跟踪每一步的输入和输出。字段值是解释性示例，不代表当前环境已经抓取到的真实消息。
 
-**本例的具体数据变化**
-
-下面用一批消费记录说明每个阶段的数据长什么样。字段值是为了帮助理解而编写的示例，不代表当前环境中已经抓取到的真实 Binlog 或 RocketMQ 消息。
-
-| 阶段 | `c-1001` | `c-1002` | `c-1003` | `c-1004` |
+| 步骤 | 输入数据 | 执行者与动作 | 处理后的数据 | 下一步拿到什么 |
 | --- | --- | --- | --- | --- |
-| MySQL 业务变化 | INSERT：`status=成功`，`version=1` | UPDATE：`status` 从“异常（未确定）”改为“成功”，`version` 从 `1` 变为 `2` | DELETE：删除前为 `status=成功`，`version=3` | UPDATE：`status` 从“异常（未确定）”改为“成功”，`version` 从 `4` 变为 `5` |
-| Binlog / Canal 批次 | 一个 INSERT `RowData` | 一个 UPDATE `RowData`，包含更新前后行 | 一个 DELETE `RowData` | 一个 UPDATE `RowData`，包含更新前后行 |
-| FlatMessage `type` | `INSERT` | `UPDATE` | `DELETE` | `UPDATE` |
-| 消费端对 ES 的动作 | 新增文档 | 用更新后的完整行覆盖文档 | 根据删除前的 `consume_id` 处理删除事件；本文不将其确定为 ES 逐条 Delete | 用更新后的完整行覆盖文档 |
+| 1. MySQL 提交业务变化 | `c-1001` 不存在；`c-1002`、`c-1004` 的 `status=异常（未确定）`；`c-1003` 已存在 | MySQL 提交一批业务操作：INSERT `c-1001`；UPDATE `c-1002`、`c-1004` 的 status 为“成功”；DELETE `c-1003` | 形成四条行变化：一条 INSERT、两条 UPDATE、一条 DELETE，并写入 Binlog | Canal Server 读取到 Binlog 事件 |
+| 2. Binlog 解析为 Canal 事件 | Binlog 二进制事件 | Canal Server 解析事件，形成 `Entry`、`RowChange`、`RowData` | 至少三个 Entry：INSERT Entry 携带 `c-1001`；UPDATE Entry 携带 `c-1002`、`c-1004`；DELETE Entry 携带 `c-1003` | `CanalMQStarter` 的 worker 可拉取的批次 |
+| 3. worker 拉取批次 | 包含上述 Entry 的 Canal 未确认批次 | `CanalMQStarter` 的常驻 worker 循环调用 `getWithoutAck(...)`，不是固定周期定时任务 | 得到一个 `batchId` 和对应的 Entry 列表；业务行数据尚未变成 RocketMQ JSON | `CanalRocketMQProducer.send(...)` 收到批次 |
+| 4. 准备转换数据 | Canal 批次中的 Entry、RowChange、RowData | `send(...)` 调用 `buildMessageData(...)`，整理成 `EntryRowData[]` | 中间结果仍按 INSERT、UPDATE、DELETE 保存行数据，供消息转换使用 | `messageConverter(...)` 收到 `EntryRowData[]` |
+| 5. 组装 FlatMessage | `EntryRowData[]` | `MQMessageUtils.messageConverter(...)` 按事件类型创建 FlatMessage；UPDATE 使用更新后行放入 `data`，变化字段旧值放入 `old` | 形成一个 INSERT FlatMessage、一个包含两行的 UPDATE FlatMessage、一个 DELETE FlatMessage | 分区方法或序列化步骤收到 FlatMessage 对象 |
+| 6. 分区并序列化 | FlatMessage 对象 | `messagePartition(...)` 按行计算队列；`JSON.toJSONBytes(...)` 序列化。UPDATE 拆分时保持 `data[i]` 与 `old[i]` 对应 | 得到 INSERT、UPDATE、DELETE 三类 JSON 字节；UPDATE 可能是一条消息，也可能拆成多条 | Canal RocketMQ 生产端构造 `Message` |
+| 7. 写入 RocketMQ | JSON 字节、topic、目标队列 | `sendMessage(...)` 构造并发送 RocketMQ `Message` | RocketMQ 消息体仍是对应 FlatMessage JSON；Broker 不解析或修改 `data` 数组 | RocketMQ Broker 保存并向消费组投递 |
+| 8. 消费并同步 ES | 消费端取到的 FlatMessage JSON | 消费端解析 `type`、`data` 和业务字段，按类型分派 | INSERT：新增 `c-1001`；UPDATE：用完整行更新 `c-1002`、`c-1004`；DELETE：处理 `c-1003` 删除事件，具体是否删除 ES 文档按项目消费逻辑执行 | ES 同步结果 |
 
-Canal 生产端会按事件类型组装 FlatMessage。为了展示 `data` 和 `old` 的含义，概念上的消息体可以写成下面三类 JSON：
+其中第 5 步形成的三类 FlatMessage，可以用下面的 JSON 表示：
 
 ```json
 {
@@ -105,12 +96,6 @@ Canal 生产端会按事件类型组装 FlatMessage。为了展示 `data` 和 `o
 
 
 上述方法定位来自工作区保存的 Canal 1.1.7 源码快照；对应的官方源码入口见 [CanalRocketMQProducer](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/rocketmq-connector/src/main/java/com/alibaba/otter/canal/connector/rocketmq/producer/CanalRocketMQProducer.java) 和 [MQMessageUtils](https://github.com/alibaba/canal/blob/canal-1.1.7/connector/core/src/main/java/com/alibaba/otter/canal/connector/core/producer/MQMessageUtils.java)。源码静态核对能说明方法之间的调用和字段组装方式，不能替代当前部署实例的运行验证。
-
-**最后看一批数据如何完成流转**
-
-每个环节的输出会成为下一个环节的输入：MySQL 先生成 Binlog，Canal Server 将 Binlog 解析为 `Entry`，转换阶段再生成 FlatMessage JSON，RocketMQ 生产端把 JSON 写入指定 topic 的某个队列，Broker 持久化消息并按消费组进度提供读取，消费端取出消息后解析 JSON 并执行 ES 同步。本文只展开消息格式和字段边界，不重复 [Binlog读取与Entry解析](<./017_ES改造_Canal Server_Binlog读取与Entry解析.md>) 中的读取细节，也不展开 RocketMQ 发布确认。
-
-上表用四条记录执行三种不同操作的例子贯穿整个流程：一条 INSERT、两条 UPDATE 和一条 DELETE。这样可以同时看到不同 `type` 如何从同一批次中产生，并在消费端分别落到新增、更新和删除处理。JSON 字段是否完整、消息是否拆分以及端到端同步效果，仍需通过运行配置和真实消息验证。
 
 ### 3.2 再看配置开关：决定发送什么格式
 
@@ -366,3 +351,5 @@ private void doHandler(ElasticMessageTypeEnum type,
 本轮执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，将整条处理链路示例扩展为四条消费记录和三种操作类型，并复核了表格中的 Entry、FlatMessage、RocketMQ 消息及 ES 处理结果对应关系；未执行真实 Canal、RocketMQ 或 ES 联调。
 
 本轮补充四条消费记录在 MySQL、Binlog、Canal 批次、FlatMessage、RocketMQ 和 ES 阶段的具体数据示例；示例不代表真实运行消息，未执行端到端联调。
+
+本轮删除原“用流程表确认每一步的交接”段落，改为按“输入数据→处理动作→处理后数据→下一步输入”重新组织 3.1，便于 Canal 初学者连续理解数据如何变化。
