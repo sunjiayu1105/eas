@@ -4,84 +4,96 @@
 
 ## 1 已确认规则
 
-- 校验任务由定时扫描 `update_time` 产生，不由 Binlog、Canal 或 RocketMQ 校验消费者产生。
-- 每轮扫描使用 `scan_end_time = 当前时间 - 5 分钟`、`update_time + consume_id` 复合游标和重叠窗口。
-- 扫描任务和本轮游标在数据库事务中保存，保存成功后才能推进扫描进度。
-- 同一业务记录使用 Redis 锁控制校验任务并发。
-- DELETE 记录已经不存在于 MySQL 新表，不会被扫描，也不创建校验任务。
-- 任务保存的是记录定位信息和任务版本，不把扫描时的旧数据作为补偿数据来源。
+- 不建立待校验任务表，扫描结果直接进入当前页比较流程。
+- 每张物理表独立维护一条扫描进度记录。
+- 使用 `update_time + consume_id` 复合游标；每轮固定扫描上限为当前时间减 5 分钟。
+- 初次扫描从最早历史数据开始；后续查询回看 10 分钟重叠窗口。
+- 当前页全部处理成功后更新游标；任一记录查询或补偿失败时保留原游标。
+- DELETE 数据已经不存在于 MySQL 新表，不会被扫描，也不会创建校验任务。
 
 ## 2 面试口述精炼版本
 
-**扫描并保存任务**
+每张物理表维护一条独立进度。扫描程序每轮先记录 `scan_end_time = 当前时间 - 5 分钟`，再按 `update_time + consume_id` 排序分页；除首次扫描外，每轮第一页从保存的游标时间回看 10 分钟，降低晚提交造成的漏查风险；同轮后续分页从上一页末尾的复合游标继续，不再回看。窗口覆盖效果仍待验证。当前页全部比较或补偿成功后，才把游标推进到本页最后一条记录；处理中出现失败就保留旧游标，下一轮从重叠范围继续。
 
-定时任务按分片扫描 MySQL 新表的 `update_time`，每轮先固定当前时间减 5 分钟作为安全截止时间，再按 `update_time + consume_id` 复合游标分页，并回看一段重叠窗口。扫描到的记录和本轮游标在同一个数据库事务中保存，事务提交成功后才推进扫描进度。
+## 3 进度记录
 
-**保存定位信息**
-
-任务保存来源实例、物理库、物理表、`consume_id`、扫描时的业务版本、`update_time`、任务状态、下次执行时间和重试信息。任务版本只用于判断任务是否过时，补偿时必须重新读取 MySQL 当前记录和版本。
-
-**领取和恢复任务**
-
-任务执行前通过 Redis 锁保证同一业务记录同一时间只有一个校验实例。任务执行失败时保留未完成状态并按下次执行时间重试；进程重启后从已提交的任务和游标继续。DELETE 数据不在当前表中，因此不会进入扫描或比较。
-
-## 3 扫描与任务持久化流程
+每张物理表保存一条记录：
 
 ```text
-定时任务启动
-→ 读取分片和上次复合游标
-→ 设置 scan_end_time = 当前时间 - 5 分钟
-→ 按重叠窗口扫描 update_time + consume_id
-→ 在事务中保存任务和本轮游标
-→ 事务提交成功后推进扫描进度
-→ 后台领取任务并获取 Redis 锁
-→ 进入 MySQL 与 ES 当前状态比较
+db_name
+table_name
+last_update_time
+last_consume_id
+status
+last_error
+updated_at
 ```
 
-扫描查询：
+字段含义：
+
+- `db_name`、`table_name`：定位实际物理表；
+- `last_update_time`、`last_consume_id`：复合游标，表示已成功处理到的位置；
+- `status`：记录扫描中、正常或异常状态；
+- `last_error`：最近一次扫描或处理失败原因；
+- `updated_at`：进度记录更新时间。
+
+不保存 `task_id`、任务领取状态、任务重试次数或任务版本，因为本方案不建立待校验任务表。
+
+## 4 扫描流程
+
+```text
+读取物理表进度
+→ 固定 scan_end_time = 当前时间 - 5 分钟
+→ 首次从最早历史数据开始；后续轮次仅第一页从保存的 last_update_time 回看 10 分钟
+→ 按 update_time、consume_id 分页读取当前仍存在的记录
+→ 直接比较 MySQL 记录与 ES 文档，必要时自动补偿
+→ 当前页全部成功后更新 last_update_time、last_consume_id
+→ 同轮下一页从该复合游标之后继续，不再回看；空页结束本轮
+→ 失败则保留原游标，下一轮重试
+```
+
+以下为 SQL 条件示例，尚未执行数据库验证。每轮第一页使用 `round_start_time = 保存的 last_update_time - 10 分钟`：
 
 ```sql
-SELECT ...
-FROM records
-WHERE update_time > :last_update_time - :overlap_window
+WHERE update_time > :round_start_time
   AND update_time <= :scan_end_time
 ORDER BY update_time, consume_id
-LIMIT :batch_size;
+LIMIT :page_size;
 ```
 
-任务保存失败时不能推进游标；下一轮继续扫描重叠范围。重复扫描产生的任务不依赖消息 ID 去重，执行安全性由 Redis 锁、任务幂等和 ES 版本控制保证。
+同轮后续分页使用上一页最后一条记录的复合游标：
 
-## 4 待校验任务字段
+```sql
+WHERE (
+        update_time > :last_update_time
+        OR (update_time = :last_update_time
+            AND consume_id > :last_consume_id)
+    )
+    AND update_time <= :scan_end_time
+ORDER BY update_time, consume_id
+LIMIT :page_size;
+```
 
-- `task_id`：单条校验任务标识；
-- `source_instance`：来源 MySQL 实例；
-- `database`：实际物理数据库；
-- `table`：实际物理表；
-- `consume_id`：业务记录标识；
-- `task_version`：扫描时读取的业务版本，用于判断任务是否过时；
-- `update_time`：扫描游标和任务来源时间；
-- `status`：待执行、执行中、校验成功、补偿完成或未完成；
-- `planned_execute_time`：下次执行时间；
-- `retry_count`、`failure_reason`：重试和异常记录；
-- `lock_owner`、`lock_expire_time`：可选的任务执行记录，用于排查锁和恢复问题。
+同轮各页共用固定的 `scan_end_time`；回看只用于第一页。字段前提与边界见 [044 的扫描边界](<./044_ES改造_ES_新表与 ES 增量校验方案选择.md#32-扫描边界>)。
 
-不新增 `business_key`，因为记录标识使用已有的 `consume_id`。不依赖 `msgId`、`message key` 或 Binlog 行号建立任务唯一约束。
+首次初始化：
 
-## 5 状态和恢复
+```text
+last_update_time = 该表最早历史数据的 update_time - 10 分钟
+last_consume_id = 最小值
+```
 
-- 扫描任务和游标事务提交成功后，扫描进度可以推进；
-- 任务查询失败或补偿失败时，保留未完成状态；
-- 任务成功直接比较一致时标记“校验成功”；
-- 补偿请求成功时标记“补偿完成”并结束；
-- 进程重启后恢复已提交但未完成的任务；
-- Redis 锁过期或实例异常退出后，其他实例可重新领取任务，但必须重新读取 MySQL 当前状态。
+本轮查不到更多数据时保留游标，不置空；下一轮重新计算 `scan_end_time`，从重叠范围继续扫描。
+
+## 5 调度与并发
+
+同一物理表同一时间只允许一个扫描实例执行，可使用分片锁控制。锁只保护扫描进度更新，不能代替 ES 版本控制。当前页处理完成与游标更新应保持一致，避免多个实例同时推进同一条进度。
 
 ## 6 待确认或待验证事项
 
-- 所有写入路径是否可靠维护 `update_time`；
-- 扫描索引、游标事务和重叠窗口是否满足容量与漏查风险要求；
-- Redis 锁的 TTL、续期、持有者校验和异常释放如何实现；
-- 任务重试、长期未完成任务和重复扫描的容量如何监控。
+- `(update_time, consume_id)` 索引是否已建立并满足分页性能要求？
+- 进度更新与当前页处理失败时，是否能可靠保留原游标？
+- 分片锁的 TTL、续期、持有者校验和异常释放如何实现？
 
 ## 7 参考文档
 
@@ -91,5 +103,7 @@ LIMIT :batch_size;
 
 ## 8 执行记录
 
-- 本轮将任务入口从 RocketMQ 校验消息调整为 `update_time` 扫描。
+- 本次随 044 复核，区分每轮首屏回看与同轮后续分页；仅核对文档与谓词逻辑，未执行 SQL。
+
+- 本轮删除待校验任务持久化模型，改为每张物理表维护一条扫描进度记录。
 - 未运行 Canal、RocketMQ、MySQL 或 ES 服务。
