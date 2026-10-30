@@ -12,6 +12,7 @@ Binlog、Canal 和 RocketMQ 继续承担 MySQL 到 ES 的正常同步职责，�
 
 ## 2 已确认规则
 
+- 面试口述先阐述当前选择的校验方案，再单独说明不采用按 Binlog 逐条建立校验任务的原因，不能混在一起表达。
 - 不按 Binlog 的每条变更创建校验任务，而是扫描 MySQL 新表当前仍存在的记录。
 - 使用 `update_time + consume_id` 作为复合游标，按稳定顺序分页。
 - 每轮开始固定扫描截止时间（`scan_end_time`）为当前系统时间减 5 分钟，只读取 `update_time <= scan_end_time` 的数据。
