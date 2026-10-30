@@ -27,7 +27,7 @@ canal.mq.partitionsNum=<positive-partition-count>
 
 1.1.7 的 `partitionHash` 按库表规则匹配源列；开启 `canal.mq.database.hash` 时还混入库名。同键稳定映射要求 topic、源列值、分区数、队列列表和映射算法稳定。Tag 只做过滤，不是业务顺序保障。
 
-消费端候选 orderKey 为 destination + database + table + consumeId，用于内部顺序状态，不是原生生产端的 hash 字符串。并发消费可能乱序完成；消费线程和 ES 旧版本保护详见 [RocketMQ 消费模型](<./009_ES改造_自定义消费服务_RocketMQ 消费模型.md>)。
+消费端候选 orderKey 为 destination + database + table + consumeId，用于内部顺序状态，不是原生生产端的 hash 字符串。并发消费可能乱序完成；消费线程和 ES 旧版本保护详见 [RocketMQ 消费模型](<./010_ES改造_自定义消费服务_RocketMQ 消费模型.md>)。
 
 当前设计已确定使用 MySQL 源列 `consume_id`，INSERT、UPDATE 取变更后值，DELETE 取删除前值；仍须核对三类事件均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
 
