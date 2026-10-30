@@ -1,4 +1,4 @@
-# 012_ES改造_Canal Server_Canal Server 处理逻辑
+# 008_ES改造_Canal Server_整体实现
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
