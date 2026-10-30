@@ -84,7 +84,7 @@ binlog 保留 30 天不等于 MQ 也保留 30 天，MQ 消费落后也不能假�
 | 分文档或参考文章 | 负责内容或参考范围 |
 | --- | --- |
 | [ES写入链路_整体链路_待确认问题](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/007_ES改造_整体链路_待确认问题.md:1>) | 参考文章与项目差异、待确认问题、待实现验证边界 |
-| [006 MySQL 处理逻辑](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/010_ES改造_MySQL_Canal 同步 MySQL binlog 到 ES（MySQL 处理逻辑）.md:1>) | binlog 参数、GTID 基线、日志保留期和 MySQL 侧恢复起点 |
+| [010 MySQL binlog 相关配置](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/010_ES改造_MySQL_binlog 相关配置.md:1>) | binlog 参数、GTID 基线、日志保留期和 MySQL 侧恢复起点 |
 | Canal Server 原总览（原文档已删除，依据待补充） | destination、单机 Server 配置、binlog 读取解析、本地位点、重启恢复和 RocketMQ 投递边界 |
 | [009 RocketMQ 消费与 ES 写入服务处理逻辑](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/027_ES改造_自定义消费服务_自定义 ES 消费服务处理逻辑.md:1>) | RocketMQ 消费、索引定位、ES 增删改、自然月索引、冷热分离、重试和死信处理 |
 | [100 ES 文档如何写入与检索](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/100_ES 文档如何写入与检索.md:1>) | 文档定位、写入结果与搜索可见的区别 |

@@ -1,10 +1,12 @@
-# 006_ES改造_MySQL
+# 010_ES改造_MySQL_binlog 相关配置
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 当前版本基线：Java 8、Spring Boot 2.7.18、`rocketmq-spring-boot-starter` 2.3.0、`org.apache.rocketmq:rocketmq-client` 5.2.0、Canal Server 1.1.7、Canal Adapter 1.1.7（ES 7 Adapter）、MySQL 8.0.33 和 Elasticsearch 服务端 7.17.15。5.2.0 是 MQ 客户端版本，Broker 版本未确认。
 
 ## 已确认规则
+
+- 将两份内容相同的 MySQL 文档整合为本文，删除重复源文档；文件名统一为 `010_ES改造_MySQL_binlog 相关配置.md`，同步一级标题与关联引用，保留原技术内容和待验证事项。
 
 - 本次按用户确认重命名总链路、MySQL 处理逻辑及 ES 文档如何写入与检索三份文档，同步名称标识和关联引用；不调整技术结论。
 
@@ -52,7 +54,7 @@ MySQL 侧要为同步提供三个前提：**变更完整记入 binlog（二进�
 
 ### 参考文章的吸收与边界
 
-参考文档通过 `ROW` binlog、Canal 订阅和 RocketMQ 投递演示增量同步。006 只吸收其中“已提交变更进入 binlog、下游按事件继续追赶”的原则；参考文档的 MySQL 示例版本、单实例地址、用户授权和启动命令不作为当前项目配置。
+参考文档通过 `ROW` binlog、Canal 订阅和 RocketMQ 投递演示增量同步。本文只吸收其中“已提交变更进入 binlog、下游按事件继续追赶”的原则；参考文档的 MySQL 示例版本、单实例地址、用户授权和启动命令不作为当前项目配置。
 
 当前项目有两个独立 MySQL 8.0.33 实例，分别维护 `db0`、`db1` 的 `server_uuid`、GTID 基线和 binlog 保留窗口。参考文档没有覆盖双实例独立起点、历史导入前停写采集以及 30 天日志恢复窗口，因此这些规则以本文和项目 `AGENTS.md` 为准。
 
