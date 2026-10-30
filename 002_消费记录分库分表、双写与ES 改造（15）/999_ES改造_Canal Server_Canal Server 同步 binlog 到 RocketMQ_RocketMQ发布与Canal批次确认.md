@@ -1,10 +1,10 @@
-# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认
+# 999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ发布与Canal批次确认
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明消息进入 RocketMQ 后的发布结果、Canal 批次确认、回滚和可靠性边界；读取与过滤见 [源库连接与Binlog过滤](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_源库连接与Binlog过滤.md>)，消息格式见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)，发送实现见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ生产端实现.md>)。
+- 本文只说明消息进入 RocketMQ 后的发布结果、Canal 批次确认、回滚和可靠性边界；读取与过滤见 [源库连接与Binlog过滤](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_源库连接与binlog过滤.md>)，消息格式见 [消息格式与字段边界](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_消息格式与字段边界.md>)，发送实现见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ生产端实现.md>)。
 - 两个 destination 使用固定 topic，共用同一消息契约和消费逻辑；`partitionHash` 源列为 `consume_id`。
 - 本文描述 Canal 1.1.7 源码静态核对和设计边界，不表示 Broker 持久化、批次确认或故障恢复已经运行验证。
 
@@ -54,13 +54,13 @@ canalMQProducer.send(destination, message, new Callback() {
 
 一个 Canal 批次可能拆成多个分区任务。部分分区已经成功、其他分区异常时，Canal 批次可能回滚，但已经进入 RocketMQ 的消息不会自动撤回，后续重试可能重复发送；超时还可能造成结果不明。消费端需要依靠稳定来源信息、业务版本和幂等规则处理重复及旧事件。
 
-队列稳定性与并发消费顺序的区别见 [Topic路由与多行分区](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Topic路由与多行分区.md>)。
+队列稳定性与并发消费顺序的区别见 [Topic路由与多行分区](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_Topic路由与多行分区.md>)。
 
 ### 3.4 事务和阶段边界
 
-MySQL 事务与消息边界见 [事务边界与特殊事件](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_事务边界与特殊事件.md>)。这里仅区分发送回调和后续状态：提交 Canal 批次不会等待下游 ES 写入；本地元数据可靠落盘是恢复专题需要验证的另一阶段。
+MySQL 事务与消息边界见 [事务边界与特殊事件](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_事务边界与特殊事件.md>)。这里仅区分发送回调和后续状态：提交 Canal 批次不会等待下游 ES 写入；本地元数据可靠落盘是恢复专题需要验证的另一阶段。
 
-下游暂停或 MQ 消息过期时，不能因为源库仍保留 Binlog 就直接断言可以正常补回；应先核对 Canal 位点、MQ 缺口和受控重放范围。详细恢复流程见 [本地位点与单机恢复](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_本地位点与单机恢复.md>)。
+下游暂停或 MQ 消息过期时，不能因为源库仍保留 Binlog 就直接断言可以正常补回；应先核对 Canal 位点、MQ 缺口和受控重放范围。详细恢复流程见 [本地位点与单机恢复](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_本地位点与单机恢复.md>)。
 
 ## 4 参考文章与项目设计的区别
 

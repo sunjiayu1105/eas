@@ -32,7 +32,7 @@
 
 ### 参考来源
 
-总览文档：[006_ES改造_同步 mysql binlog 到 es_整体实现](<./006_ES改造_同步 mysql binlog 到 es_整体实现.md>)
+总览文档：[006_ES改造_同步 MySQL binlog 到 ES_整体实现](<./006_ES改造_同步 MySQL binlog 到 ES_整体实现.md>)
 
 
 

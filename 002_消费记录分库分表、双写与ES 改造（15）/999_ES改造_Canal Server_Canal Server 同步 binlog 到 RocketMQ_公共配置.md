@@ -1,16 +1,16 @@
-# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_公共配置
+# 999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 适用规则
 
-沿用 [处理链路总览](<./012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
+沿用 [处理链路总览](<./012_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_整体实现.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
 
 ## 2 面试口述精炼版本
 
 **说明公共配置文件职责**
 
-Canal Server 的全局配置文件是解压目录下的 conf/canal.properties，负责选择运行模式、加载哪些 destination 和使用哪种位点模板；每个 destination 的源库连接和表过滤写在对应的 conf/<destination>/instance.properties。RocketMQ 连接参数见本页 3.2，生产端实现见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ生产端实现.md>)。这些配置只说明启动入口和参数边界，不能证明参数已被实际加载或消息已成功发送。
+Canal Server 的全局配置文件是解压目录下的 conf/canal.properties，负责选择运行模式、加载哪些 destination 和使用哪种位点模板；每个 destination 的源库连接和表过滤写在对应的 conf/<destination>/instance.properties。RocketMQ 连接参数见本页 3.2，生产端实现见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ生产端实现.md>)。这些配置只说明启动入口和参数边界，不能证明参数已被实际加载或消息已成功发送。
 
 ## 3 详细方案
 
@@ -53,7 +53,7 @@ rocketmq.retry.times.when.send.failed=<retry-count>
 rocketmq.vip.channel.enabled=false
 ```
 
-批次大小不等于最终 RocketMQ 消息数。内部发送线程参数也不是下游消费者线程数。路由键和固定 topic 见 [Topic路由与多行分区](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Topic路由与多行分区.md>)；消息字段见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)；提交回滚见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)。
+批次大小不等于最终 RocketMQ 消息数。内部发送线程参数也不是下游消费者线程数。路由键和固定 topic 见 [Topic路由与多行分区](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_Topic路由与多行分区.md>)；消息字段见 [消息格式与字段边界](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_消息格式与字段边界.md>)；提交回滚见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ发布与Canal批次确认.md>)。
 
 ## 4 参考文章与项目设计的区别
 

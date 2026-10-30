@@ -1,10 +1,10 @@
-# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_源库连接与Binlog过滤
+# 999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_源库连接与binlog过滤
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 如何连接两个 MySQL 源库、确定首次读取起点并按库表过滤 Binlog；Entry 结构见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Entry结构与行事件解析.md>)。
+- 本文只说明 Canal Server 如何连接两个 MySQL 源库、确定首次读取起点并按库表过滤 Binlog；Entry 结构见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_Entry结构与行事件解析.md>)。
 - 项目采用一个 Canal Server 进程承载 `db0`、`db1` 两个 destination；每个 destination 独立维护源库连接、过滤规则、GTID 起点和本地进度。
 - 本文记录设计和 Canal 1.1.7 源码静态核对，不表示实际配置已经加载或恢复流程已经演练。
 
@@ -51,9 +51,9 @@ Canal 原生 MQ 工作线程从嵌入式 Server 获取批次时使用空过滤�
 
 1. destination 建立源库连接并加载过滤范围；
 2. Canal 从首次 GTID 基线或已有本地位点继续读取；
-3. 读取结果交给 Entry 解析，见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Entry结构与行事件解析.md>)；
-4. 消息格式和字段边界由 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>) 说明；
-5. 内置生产端发送和批次确认分别见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ生产端实现.md>) 与 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)。
+3. 读取结果交给 Entry 解析，见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_Entry结构与行事件解析.md>)；
+4. 消息格式和字段边界由 [消息格式与字段边界](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_消息格式与字段边界.md>) 说明；
+5. 内置生产端发送和批次确认分别见 [RocketMQ生产端实现](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ生产端实现.md>) 与 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ发布与Canal批次确认.md>)。
 
 ## 4 参考文章与项目设计的区别
 

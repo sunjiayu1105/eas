@@ -1,10 +1,10 @@
-# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_部署拓扑
+# 999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 适用规则
 
-沿用 [处理链路总览](<./012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
+沿用 [处理链路总览](<./012_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_整体实现.md>) 的已确认规则；下述内容属于项目设计，未表示已部署或通过运行验证。
 
 ## 2 面试口述精炼版本
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ## 5 待确认或待验证事项
 
-单机承载两个 destination 的容量、实例隔离和实际 RocketMQ 组件数量仍待部署核对；位点恢复见 [本地位点与单机恢复](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_本地位点与单机恢复.md>)。
+单机承载两个 destination 的容量、实例隔离和实际 RocketMQ 组件数量仍待部署核对；位点恢复见 [本地位点与单机恢复](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_本地位点与单机恢复.md>)。
 
 ## 6 复核记录
 
