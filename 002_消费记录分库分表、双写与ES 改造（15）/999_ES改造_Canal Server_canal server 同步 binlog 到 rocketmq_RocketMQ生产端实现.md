@@ -1,10 +1,10 @@
-# 020_ES改造_Canal Server_RocketMQ生产端实现
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ生产端实现
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；发布结果、Canal 批次提交与回滚影响见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
+- 本文只说明 Canal Server 将 binlog 事件转换并发送到 RocketMQ 的核心实现；发布结果、Canal 批次提交与回滚影响见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)。
 - 当前项目采用 Canal Server 内置 RocketMQ 生产端，不另设独立 TCP 投递组件；本文描述的是 Canal 1.1.7 源码路径，未表示实际发行包已部署或验证。
 - Canal 1.1.7 官方构建资料声明使用 RocketMQ 客户端 `4.8.0`；该结论用于记录官方构建口径，不据此断言当前运行实例的 JAR 已加载。
 - 当前项目规划使用 RocketMQ Broker `5.2.0`；这是已确认的设计选择，实际部署和兼容性仍需验证。
@@ -17,7 +17,7 @@
 
 **内置生产任务取批次并发送**
 
-CanalMQStarter 为每个 destination 启动后台 worker，取出未确认批次交给 CanalRocketMQProducer。生产端准备 EntryRowData，转换 FlatMessage，按配置分区，再逐个序列化成 RocketMQ 消息并等待发送任务结束。发送结果交给批次回调，可靠性边界见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)；实际发行包和联调仍待验证。
+CanalMQStarter 为每个 destination 启动后台 worker，取出未确认批次交给 CanalRocketMQProducer。生产端准备 EntryRowData，转换 FlatMessage，按配置分区，再逐个序列化成 RocketMQ 消息并等待发送任务结束。发送结果交给批次回调，可靠性边界见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)；实际发行包和联调仍待验证。
 
 ## 3 详细方案
 
@@ -31,11 +31,11 @@ Canal 批次由 batchId 标识，可以包含多个 Entry 和多条 RowData。�
 
 1. CanalRocketMQProducer.send(...) 接收批次，调用 MQMessageUtils.buildMessageData(...) 准备 EntryRowData[]。
 2. JSON 路径调用 messageConverter(...)，按有效事件生成 FlatMessage；不会将整个批次直接拼成一个 JSON 数组。
-3. 配置分区哈希时调用 messagePartition(...)，具体键值和拆行示例见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
+3. 配置分区哈希时调用 messagePartition(...)，具体键值和拆行示例见 [Topic路由与多行分区](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Topic路由与多行分区.md>)。
 4. 对待发送 FlatMessage 调用 JSON.toJSONBytes(flatMessage, JSONWriter.Feature.WriteNulls)，构造 RocketMQ Message。
 5. sendMessage(...) 调用 Producer 发送到目标队列，等待本轮发送任务结束，再交给提交或回滚回调。
 
-字段与行值的定义见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；完整配置见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)。当前项目已确认的格式开关为 canal.mq.flatMessage=true。源码中的批量发送是发送多个 Message，不代表一个 body 中包含多个 FlatMessage。
+字段与行值的定义见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)；完整配置见 [公共配置](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_公共配置.md>)。当前项目已确认的格式开关为 canal.mq.flatMessage=true。源码中的批量发送是发送多个 Message，不代表一个 body 中包含多个 FlatMessage。
 
 ### 3.3 核心调用示意
 

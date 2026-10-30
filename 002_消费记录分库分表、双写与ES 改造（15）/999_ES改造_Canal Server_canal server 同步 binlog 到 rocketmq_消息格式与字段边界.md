@@ -1,10 +1,10 @@
-# 018_ES改造_Canal Server_消息格式与字段边界
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明项目采用的 `FlatMessage` JSON 及项目字段契约，不展开未采用的二进制方案；日志读取见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，事务边界见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明项目采用的 `FlatMessage` JSON 及项目字段契约，不展开未采用的二进制方案；日志读取见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Entry结构与行事件解析.md>)，事务边界见 [事务边界与特殊事件](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
 - 本文按消息体、字段、操作类型、完整行和重复处理的顺序说明消息契约；首次出现的术语就地解释。
@@ -31,7 +31,7 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 一个对象只有一个 database、table、type；data 内可以有多行，但不会把 INSERT 和 UPDATE 混在同一个对象中。消费端一次回调拿到多少条 RocketMQ 消息，是消费 API 的批量行为，与一个 body 中有多少行不同。
 
-全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现.md>)。
+全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现.md>)。
 
 明确消息体与行数组的关系后，下面用一条多行 UPDATE 消息说明字段如何承载一次变更。
 
@@ -96,7 +96,7 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 - data[1] 与 old[1] 对应 c-1004：状态从“异常（未确定）”变为“成功”，版本 4 → 5。
 - data[2] 与 old[2] 对应 c-1005：状态从“异常（未确定）”变为“成功”，版本 7 → 8。
 
-消费端读取 `data` 中的三行即可处理三个更新。当前完整行覆盖方案不需要使用 `old` 合并字段。`old` 的配对关系、多行、空值和变化列集合仍须实测。分区后如何保留对应关系见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
+消费端读取 `data` 中的三行即可处理三个更新。当前完整行覆盖方案不需要使用 `old` 合并字段。`old` 的配对关系、多行、空值和变化列集合仍须实测。分区后如何保留对应关系见 [Topic路由与多行分区](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Topic路由与多行分区.md>)。
 
 这个示例先确定了 `data` 和 `old` 的实际形态，下一步再分别说明 FlatMessage 的固定字段和行对象中的业务字段。
 

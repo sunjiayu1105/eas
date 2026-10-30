@@ -1,4 +1,4 @@
-# 019_ES改造_Canal Server_Topic路由与多行分区
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Topic路由与多行分区
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -8,7 +8,7 @@
 
 ## 2 面试口述精炼版本
 
-每个 destination（同步通道）分别配置固定 topic 和消息路由；源库连接、表过滤和 GTID 起点见 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>)。两个 topic 共用同一消息契约和消费逻辑。按 `consume_id` 选择队列，但同键入队不等于并发消费按顺序完成。分区数和队列映射仍待验证。
+每个 destination（同步通道）分别配置固定 topic 和消息路由；源库连接、表过滤和 GTID 起点见 [源库连接与Binlog过滤](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_源库连接与Binlog过滤.md>)。两个 topic 共用同一消息契约和消费逻辑。按 `consume_id` 选择队列，但同键入队不等于并发消费按顺序完成。分区数和队列映射仍待验证。
 
 ## 3 详细方案
 
@@ -31,7 +31,7 @@ canal.mq.partitionsNum=<positive-partition-count>
 
 当前设计已确定使用 MySQL 源列 `consume_id`，INSERT、UPDATE 取变更后值，DELETE 取删除前值；仍须核对三类事件均有值，不能把 ES 的驼峰字段直接当作 MySQL 列名。分区数必须明确为正数，并核对与实际 topic 队列列表的映射；不能只写 `partitionHash` 就宣称已实现业务键分散到多个队列。
 
-同一 destination 的唯一读取进程与重放约束见 [本地位点与单机恢复](<./022_ES改造_Canal Server_本地位点与单机恢复.md>)。分区数尚未确定，不能把文章的 8 当作项目参数。
+同一 destination 的唯一读取进程与重放约束见 [本地位点与单机恢复](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_本地位点与单机恢复.md>)。分区数尚未确定，不能把文章的 8 当作项目参数。
 
 ### 3.3 多行 FlatMessage 的拆分结果
 
@@ -50,7 +50,7 @@ canal.mq.partitionsNum=<positive-partition-count>
 消息 B：data=[c-1004 新值]，old=[c-1004 旧值]
 ```
 
-每条消息体仍序列化一个 FlatMessage。拆分由 Canal 生产端完成；RocketMQ 不解析 data 后替业务拆行。多行配对、空值与实际映射需抓取真实消息核验。字段含义只在 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 展开。
+每条消息体仍序列化一个 FlatMessage。拆分由 Canal 生产端完成；RocketMQ 不解析 data 后替业务拆行。多行配对、空值与实际映射需抓取真实消息核验。字段含义只在 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>) 展开。
 
 ## 4 参考文章与项目设计的区别
 

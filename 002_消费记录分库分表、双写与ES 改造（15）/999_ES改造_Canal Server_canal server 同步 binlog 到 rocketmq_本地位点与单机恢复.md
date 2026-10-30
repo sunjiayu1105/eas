@@ -1,4 +1,4 @@
-# 022_ES改造_Canal Server_本地位点与单机恢复
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_本地位点与单机恢复
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。本文只说明本地位点、人工重启和主机文件故障恢复。
 
@@ -20,7 +20,7 @@
 
 本文采用 `file-instance.xml` 本地位点模板，按 destination 分别保存可恢复进度。原生生产端的提交回调通过内部 `ack` 更新消费游标，本地元数据落盘是另一个阶段；读取位置、内存游标和本地持久化游标不能混为一谈。具体文件路径、刷新时机与 destination/clientId 的对应关系须按 Canal 1.1.7 实际发行包核验。
 
-发送状态风险见 [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。消息已进入 MQ、ES 已写入或本地文件存在，都不能单独证明 Canal 已可靠保存恢复进度；故障前已处理但尚未落盘的部分可能重放，具体范围需联调验证，下游必须处理重复和旧事件。
+发送状态风险见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)。消息已进入 MQ、ES 已写入或本地文件存在，都不能单独证明 Canal 已可靠保存恢复进度；故障前已处理但尚未落盘的部分可能重放，具体范围需联调验证，下游必须处理重复和旧事件。
 
 #### 3.1.2 人工重启恢复
 
@@ -36,7 +36,7 @@
 
 本地位点依赖保存文件的主机和存储。主机或磁盘故障导致位点不可读时，需要先核对能否恢复原进度及必要元数据；不能在另一台主机直接按最新 GTID 启动，也不能默认退回导入前基线。备份、文件恢复和人工迁移步骤仍需实现依据与演练，当前方案不承诺自动切换、零中断或零丢失。
 
-监控与完整验收清单见 [监控与验收](<./023_ES改造_Canal Server_监控与验收.md>)。
+监控与完整验收清单见 [监控与验收](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_监控与验收.md>)。
 
 ### 3.2 版本核对依据与边界
 
@@ -63,7 +63,7 @@
 
 ## 5 关联文档
 
-- [RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)
+- [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ发布与Canal批次确认.md>)
 - [999_ES改造_ES_新表与 ES 增量校验_增量比较与版本判断](<./999_ES改造_ES_新表与 ES 增量校验_增量比较与版本判断.md>)
 
 ## 6 待确认或待验证事项

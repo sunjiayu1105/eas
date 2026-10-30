@@ -1,11 +1,11 @@
-# 016_ES改造_Canal Server_Entry结构与行事件解析
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Entry结构与行事件解析
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明 Binlog 事件进入 Canal 后如何表示为 Entry、RowChange 和 RowData，以及普通行事件与事务/DDL 事件的解析边界；读取连接和过滤范围见 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>)。
-- 消息格式、字段契约和 DELETE 前值见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；事务和特殊事件处置见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
+- 本文只说明 Binlog 事件进入 Canal 后如何表示为 Entry、RowChange 和 RowData，以及普通行事件与事务/DDL 事件的解析边界；读取连接和过滤范围见 [源库连接与Binlog过滤](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_源库连接与Binlog过滤.md>)。
+- 消息格式、字段契约和 DELETE 前值见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)；事务和特殊事件处置见 [事务边界与特殊事件](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_事务边界与特殊事件.md>)。
 - 本文依据 Canal 1.1.7 源码静态核对，不表示实际发行包已经部署或解析结果已经验证。
 
 ## 2 面试口述精炼版本
@@ -29,18 +29,18 @@ Entry 是 Canal 在解析阶段使用的事件容器。对于 ROWDATA 类型，s
 
 ### 3.2 行事件与字段前提
 
-INSERT、UPDATE、DELETE 的行数据会进入后续消息转换。新增和更新需要保留同次变更的行后数据及业务 `version`；DELETE 需要保留删除前的 `consume_id`、原始 `create_time` 等定位信息，具体字段输出由 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 定义。
+INSERT、UPDATE、DELETE 的行数据会进入后续消息转换。新增和更新需要保留同次变更的行后数据及业务 `version`；DELETE 需要保留删除前的 `consume_id`、原始 `create_time` 等定位信息，具体字段输出由 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>) 定义。
 
-多行事件的源坐标与行身份边界见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)；事务与特殊事件的处理归 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
+多行事件的源坐标与行身份边界见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)；事务与特殊事件的处理归 [事务边界与特殊事件](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_事务边界与特殊事件.md>)。
 
 ### 3.3 解析后的交接
 
 Entry 解析完成后才进入消息格式转换和分区发送，顺序如下：
 
-1. 读取和过滤由 [源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>) 负责；
+1. 读取和过滤由 [源库连接与Binlog过滤](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_源库连接与Binlog过滤.md>) 负责；
 2. 本文将事件解析为 Entry、RowChange 和 RowData；
-3. FlatMessage JSON 和二进制封装的字段边界由 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>) 负责；
-4. Canal 内置生产端转换、分区和发送由 [RocketMQ生产端实现](<./020_ES改造_Canal Server_RocketMQ生产端实现.md>) 负责。
+3. FlatMessage JSON 和二进制封装的字段边界由 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>) 负责；
+4. Canal 内置生产端转换、分区和发送由 [RocketMQ生产端实现](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_RocketMQ生产端实现.md>) 负责。
 
 ## 4 参考文章与项目设计的区别
 

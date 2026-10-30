@@ -1,10 +1,10 @@
-# 017_ES改造_Canal Server_事务边界与特殊事件
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_事务边界与特殊事件
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
 ## 1 已确认规则与适用边界
 
-- 本文只说明事务标记、消息边界和 DDL 等特殊事件；日志解析见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，字段格式见 [消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
+- 本文只说明事务标记、消息边界和 DDL 等特殊事件；日志解析见 [Entry结构与行事件解析](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_Entry结构与行事件解析.md>)，字段格式见 [消息格式与字段边界](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_消息格式与字段边界.md>)。
 - 一条 MQ 消息不直接等同于完整源事务；特殊事件的具体暂停、恢复和隔离策略仍待确认。
 
 ## 2 面试口述精炼版本

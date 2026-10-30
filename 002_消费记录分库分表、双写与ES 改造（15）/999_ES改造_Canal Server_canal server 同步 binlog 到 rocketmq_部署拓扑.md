@@ -1,4 +1,4 @@
-# 013_ES改造_Canal Server_部署拓扑
+# 999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_部署拓扑
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ## 5 待确认或待验证事项
 
-单机承载两个 destination 的容量、实例隔离和实际 RocketMQ 组件数量仍待部署核对；位点恢复见 [本地位点与单机恢复](<./022_ES改造_Canal Server_本地位点与单机恢复.md>)。
+单机承载两个 destination 的容量、实例隔离和实际 RocketMQ 组件数量仍待部署核对；位点恢复见 [本地位点与单机恢复](<./999_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_本地位点与单机恢复.md>)。
 
 ## 6 复核记录
 
