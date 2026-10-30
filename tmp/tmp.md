@@ -1,11 +1,10 @@
-将 030-042的文档重新进行拆分，按以下大纲进行拆分：
-- ES 索引设计、创建与写入  
-- ES 生命周期管理_冷热分离  
-- ES 生命周期管理_到期删除  
-- ES 写入失败、重试与恢复
-
-文档名称的格式为：3个数字编号 + “_ES改造_ES_” + 文档主题 
+006_ES改造_同步 MySQL binlog 到 ES_整体实现.md，重命名为：006_ES改造_整体实现.md
 
 
-对031、032、033文档分别执行以下操作：
-重新梳理， 要求：有条理地阐述，梳理完之后调用 [$java-interview-doc-review-loop](C:/Users/Administrator//.codex/skills/java-interview-doc-review-loop/SKILL.md) 整理文档
+012_ES改造_Canal Server_Canal Server 处理逻辑.md，重命名为：012_ES改造_Canal Server_整体实现.md
+
+027_ES改造_自定义消费服务_自定义 ES 消费服务处理逻辑.md，重命名为：027_ES改造_自定义消费服务_整体实现.md
+
+删除000；
+
+对编号非999的文档重新按现在的顺序重新进行编号，从001开始
