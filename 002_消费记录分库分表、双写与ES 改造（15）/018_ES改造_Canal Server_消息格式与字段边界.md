@@ -31,7 +31,7 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 一个对象只有一个 database、table、type；data 内可以有多行，但不会把 INSERT 和 UPDATE 混在同一个对象中。消费端一次回调拿到多少条 RocketMQ 消息，是消费 API 的批量行为，与一个 body 中有多少行不同。
 
-全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_整体实现.md>)。
+全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现.md>)。
 
 明确消息体与行数组的关系后，下面用一条多行 UPDATE 消息说明字段如何承载一次变更。
 

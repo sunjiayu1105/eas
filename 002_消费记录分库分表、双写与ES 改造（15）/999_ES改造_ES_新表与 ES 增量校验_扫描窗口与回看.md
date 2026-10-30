@@ -1,4 +1,4 @@
-﻿# 999_ES改造_ES_新表与 ES 增量校验_扫描窗口与回看
+# 999_ES改造_ES_新表与 ES 增量校验_扫描窗口与回看
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -44,3 +44,4 @@ LIMIT :page_size;
 
 - 已执行 [java-interview-doc-split](C:\Users\Administrator\.codex\skills\java-interview-doc-split\SKILL.md)，从 044 拆出扫描窗口与回看考点。
 - 未执行 MySQL SQL、执行计划、Canal、RocketMQ 或 ES 联调。
+

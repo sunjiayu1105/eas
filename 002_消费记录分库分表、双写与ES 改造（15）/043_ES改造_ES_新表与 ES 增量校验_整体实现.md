@@ -1,4 +1,4 @@
-﻿# 043_ES改造_ES_新表与 ES 增量校验_整体实现
+# 043_ES改造_ES_新表与 ES 增量校验_整体实现
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -81,3 +81,4 @@ Binlog、Canal 和 RocketMQ 继续承担 MySQL 到 ES 的正常同步职责，�
 - 本轮执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 两轮，重点检查逻辑是否层层递进、表述是否适用于面试口述。
 - 第 1 轮统一 043、048、049 的轮次回看与同轮分页表述；第 2 轮复核方案、窗口、游标、比较补偿和恢复之间的口述顺序，未发现需要继续修改的同类问题。
 - 已执行静态文档、链接和差异检查；未运行 MySQL、Canal、RocketMQ 或 Elasticsearch 服务，运行时行为仍待验证。
+

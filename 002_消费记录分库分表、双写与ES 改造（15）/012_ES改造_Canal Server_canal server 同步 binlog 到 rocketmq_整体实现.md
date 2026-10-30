@@ -1,4 +1,4 @@
-# 012_ES改造_Canal Server_整体实现
+# 012_ES改造_Canal Server_canal server 同步 binlog 到 rocketmq_整体实现
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -23,6 +23,23 @@
 - [本地位点与单机恢复](<./022_ES改造_Canal Server_本地位点与单机恢复.md>)
 - [监控与验收](<./023_ES改造_Canal Server_监控与验收.md>)
 
+## 3 分文档核心内容与实现顺序
+
+本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`012` 只负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
+
+1. **部署拓扑**：说明单机 Canal Server、`db0`/`db1` 两个 destination、RocketMQ 和下游 ES 服务的连接关系，以及单机故障边界，见 [013_ES改造_Canal Server_部署拓扑](<./013_ES改造_Canal Server_部署拓扑.md>)。
+2. **公共配置**：说明 `canal.properties`、destination 实例配置、RocketMQ 参数和本地位点模板入口，见 [014_ES改造_Canal Server_公共配置](<./014_ES改造_Canal Server_公共配置.md>)。
+3. **源库连接与 Binlog 过滤**：说明两个 destination 的 MySQL 连接、首次 GTID 基线、已有位点恢复和库表过滤，见 [015_ES改造_Canal Server_源库连接与Binlog过滤](<./015_ES改造_Canal Server_源库连接与Binlog过滤.md>)。
+4. **Entry 结构与行事件解析**：说明 Binlog 如何进入 `Entry`、`RowChange`、`RowData`，见 [016_ES改造_Canal Server_Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)。
+5. **事务边界与特殊事件**：说明事务标记、消息边界、DDL 和特殊事件的隔离边界，见 [017_ES改造_Canal Server_事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
+6. **消息格式与字段边界**：说明 `FlatMessage` JSON、`data`、`old`、DELETE 定位信息和版本字段，见 [018_ES改造_Canal Server_消息格式与字段边界](<./018_ES改造_Canal Server_消息格式与字段边界.md>)。
+7. **Topic 路由与多行分区**：说明固定 topic、`consume_id` 分区键和多行消息拆分，见 [019_ES改造_Canal Server_Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
+8. **RocketMQ 生产端实现**：说明批次获取、数据转换、消息构造和发送调用，见 [020_ES改造_Canal Server_RocketMQ生产端实现](<./020_ES改造_Canal Server_RocketMQ生产端实现.md>)。
+9. **发布与 Canal 批次确认**：说明发送结果、提交、回滚、部分成功和结果不明边界，见 [021_ES改造_Canal Server_RocketMQ发布与Canal批次确认](<./021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md>)。
+10. **本地位点与单机恢复**：说明本地进度、人工重启、主机文件故障和恢复前提，见 [022_ES改造_Canal Server_本地位点与单机恢复](<./022_ES改造_Canal Server_本地位点与单机恢复.md>)。
+11. **监控与验收**：说明监控指标、故障注入、留存窗口和端到端验收证据，见 [023_ES改造_Canal Server_监控与验收](<./023_ES改造_Canal Server_监控与验收.md>)。
+
+这些文档共同覆盖“部署配置→源库读取→事件解析→事务边界→消息转换→Topic 分区→RocketMQ 发布→Canal 批次确认→本地位点恢复→监控验收”的完整实现链路。设计确认、源码静态核对、实际实现和运行验证仍分别记录，不能由文档存在互相替代。
 ## 3 用四条记录理解整条链路
 
 本例仅示意同一批次中有 INSERT、UPDATE、DELETE 三类行事件，假设两条 UPDATE 在同一事件中；事务标记暂不展开。Entry 是事件容器，RowChange 是行变更描述，RowData 对应一行前后列值。批次大小和事件数不是固定对应关系。

@@ -69,3 +69,4 @@ SELECT @@global.time_zone,
 ## 5. 验证边界
 
 本次清理了 Anki 导出头、包裹引号及 HTML 转义，恢复为普通 Markdown；未连接数据库或运行 Adapter。实际字段类型、JDBC 驱动、转换代码、发往 ES 的 JSON 与查询解析链路仍需联调。Mapping 详见[消费记录 ES Mapping 设计](<D:/000/sources/eas/002_消费记录分库分表、双写与ES 改造（15）/999_消费记录 ES Mapping 设计.md:1>)。
+

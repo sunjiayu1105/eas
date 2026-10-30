@@ -1,4 +1,4 @@
-﻿# 999_ES改造_ES_新表与 ES 增量校验_复合游标与轮次分页
+# 999_ES改造_ES_新表与 ES 增量校验_复合游标与轮次分页
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -45,3 +45,4 @@ LIMIT :page_size;
 
 - 已执行 [java-interview-doc-split](C:\Users\Administrator\.codex\skills\java-interview-doc-split\SKILL.md)，从 044 拆出复合游标与轮次分页考点。
 - 未执行数据库 SQL、服务联调或故障恢复测试。
+

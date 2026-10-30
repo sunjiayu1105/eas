@@ -1,4 +1,4 @@
-﻿# 999_ES改造_ES_新表与 ES 增量校验_扫描任务持久化与调度
+# 999_ES改造_ES_新表与 ES 增量校验_扫描任务持久化与调度
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -65,3 +65,4 @@ updated_at
 
 - 已执行 [java-interview-doc-split](C:\Users\Administrator\.codex\skills\java-interview-doc-split\SKILL.md)。
 - 本轮将进度持久化、调度和分页规则分开；未运行 MySQL、Canal、RocketMQ 或 ES。
+
