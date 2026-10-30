@@ -3,7 +3,7 @@
 ## 1 已确认规则
 
 - 以下内容按照当前项目 AGENTS.md 规定的技术栈版本编写：Java 8、Spring Boot 2.7.18、MySQL 8.0.33、Elasticsearch 7.17.15、RocketMQ Spring 2.3.0、RocketMQ Client 5.2.0、Canal Server 1.1.7。
-- ES 按自然月建立物理索引，名称为 records-yyyy.MM，不使用 rollover；records-read 只用于跨月查询，新增、更新和重投直接写入计算出的物理索引。
+- ES 按月创建物理索引，命名规范为 records-yyyy.MM，不使用 rollover；records-read 只用于跨月查询，新增、更新和重投直接写入计算出的物理索引。
 - 索引定位使用不可变的原始 create_time，按统一业务时区计算所属月份。不能使用消息时间、update_time 或当前月份替代它。
 - 新分库分表的消费表使用业务 version 控制来源顺序：历史导入初始化为 1，后续更新在同一条 SQL 中修改业务字段并执行 version = version + 1；导入重跑不重置已有版本，消息重投沿用原消息中的数据和版本。
 - 新增、更新使用 Index API，并在同一物理索引、同一 _id 范围内携带业务版本和 version_type=external，由 ES 原子比较新旧版本。MySQL DELETE 不调用 ES Delete API，索引删除由 ILM 管理。
