@@ -84,13 +84,6 @@ Canal Message 与 RocketMQ Message 是不同包中的类型，伪代码为便于
 
 ## 6 复核记录
 
-本轮按 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 复核了面向 Canal 初学者的讲解顺序，新增角色说明和“四步链路”概览，并在配置与代码前补充了阅读提示。技术结论、来源和未验证边界未改变；未执行 Canal、RocketMQ 或 ES 联调。
-
-本轮修正了第 3 章新增小节的连续编号，将角色说明和后续步骤统一为 `3.1`～`3.7`。
-
-本轮补充了 CanalMQStarter、Canal 批次和 CanalRocketMQProducer 三者的传递关系，以及发送完成后的确认/回滚回调关系；未改变原有技术结论。
-
-
 已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
 
 ## 7 参考来源

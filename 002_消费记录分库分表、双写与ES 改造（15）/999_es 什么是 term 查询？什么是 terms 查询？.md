@@ -15,4 +15,3 @@
 - `text` 字段会先用分析器处理字段值。例如原始值 `"Hello World"` 经默认 `standard` 分析器后，通常形成 `hello` 和 `world` 两个索引词项。此时，`term` 查询中的查询值不会自动经过同样的分析；只有当查询值本身是索引词项，例如 `"hello"`，才可能匹配。
 
 因此，自然语言字段通常使用 `match`。`match` 会先分析查询文本，再用分析后的查询词项匹配索引词项。`match` 的 `operator` 默认是 `OR`，所以多个查询词默认命中任意一个即可。`term.case_insensitive` 在 Elasticsearch 7.17.15 中可用于让 `term` 查询进行大小写不敏感匹配，默认值为 `false`。
-

@@ -7,37 +7,37 @@
 - 本文只说明项目采用的 `FlatMessage` JSON 及项目字段契约，不展开未采用的二进制方案；日志读取见 [Entry结构与行事件解析](<./016_ES改造_Canal Server_Entry结构与行事件解析.md>)，事务边界见 [事务边界与特殊事件](<./017_ES改造_Canal Server_事务边界与特殊事件.md>)。
 - 新增、更新传递同次变更的数据和业务 `version`；DELETE 保留删除前定位信息，不转换为 ES 逐条 Delete。设计记录不表示字段已端到端验证。
 - 当前项目设计上采用 FlatMessage JSON：要求 `canal.mq.flatMessage=true`，自定义 ES 消费服务按 JSON 解析；实际运行配置、真实消息样例和端到端解析结果仍待验证。
-- 本文按 Canal 初学者能够连续理解的顺序编写：先建立消息与行数据的关系，再看多行示例、解释字段和操作类型，最后说明完整行与重复处理的前提；首次出现的术语就地解释。
+- 本文按消息体、字段、操作类型、完整行和重复处理的顺序说明消息契约；首次出现的术语就地解释。
 - 当前项目要求 UPDATE 的 `data` 保证为完整更新后行；只有通过完整性校验的消息，才能按完整文档覆盖写入 ES。该要求的配置和运行效果仍需验证。
 - 当前 ES 同步允许重复处理，通过业务版本控制防止旧数据覆盖新数据，不为避免重复写入而引入独立事件 ID；实际版本校验和冲突处理仍需验证。
+- 面试口述按“消息从哪里来 → 消息体包含什么 → 消费端如何处理”的顺序展开，避免直接堆叠 `body`、`data`、`old` 和完整行等概念。
+
+
+
 
 ## 2 面试口述精炼版本
 
-**消费端收到一个对象，逐行处理 data**
+**消息体采用 FlatMessage JSON**
 
-项目采用 FlatMessage JSON：一条 RocketMQ 消息的 body 是一个 JSON 对象，data 数组可以包含同一张表、同一操作类型的多条行变更。INSERT、UPDATE 取行后值，DELETE 取行前值；UPDATE 的 old 保存变化列旧值。消费端遍历 data，完整行通过校验后才用于 ES 覆盖写入。配置加载和真实消息仍待验证，字段与示例见[详细方案](#3-详细方案)。
+Canal Server 读取 MySQL 行变化后，将其组装为 FlatMessage 并序列化为 JSON，作为 RocketMQ 消息的 `body`。消费端解析 JSON 后，`database` 和 `table` 标识来源库表，`type` 标识 INSERT、UPDATE 或 DELETE，`data` 保存行数据，`old` 保存 UPDATE 变化字段的旧值。`data` 可以包含同一操作类型的多条行变更；INSERT、UPDATE 使用行后值，DELETE 使用行前值。项目要求 UPDATE 的 `data` 通过完整性校验后再覆盖写入 ES。
 
 ## 3 详细方案
 
-### 3.1 先分清消息、JSON 对象和行数据
+### 3.1 消息体与行数据
 
-Canal 将 MySQL 的行变化整理成 Java 对象 `FlatMessage`，再把对象转成 JSON 字节，这个过程叫序列化。JSON 字节放进 RocketMQ 消息的 `body`（消息体，即承载业务内容的部分），消费端收到后再解析为对象。
+Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 JSON 字节，作为 RocketMQ `Message` 的 `body`。消费端从 `body` 解析 FlatMessage JSON。
 
-先记住这三个层次：
-
-1. 一条 RocketMQ 消息的 `body` 对应一个 FlatMessage JSON 对象。
-2. 这个对象中的 `data` 是数组，也就是一组行对象。
-3. `data` 的每个元素代表一条记录在本次事件中的行数据；所以一条消息可以包含多条行变更。
-
-例如，一个 UPDATE 消息的 `data` 有三行，消费端就要处理三条记录的更新。一次批量发送可以发送多条 RocketMQ 消息，但不会把它们的 FlatMessage 合成一个消息体中的外层数组。
+一条 RocketMQ 消息的 `body` 对应一个 FlatMessage JSON 对象。对象的 `data` 是行对象数组，每个元素对应一条行变更，因此一个 FlatMessage 可以包含同一操作类型的多条行变更。一次批量发送可以包含多个 RocketMQ `Message`，但不会在一个 `body` 中封装多个 FlatMessage 的外层数组。
 
 一个对象只有一个 database、table、type；data 内可以有多行，但不会把 INSERT 和 UPDATE 混在同一个对象中。消费端一次回调拿到多少条 RocketMQ 消息，是消费 API 的批量行为，与一个 body 中有多少行不同。
 
 全局配置 `conf/canal.properties` 中的 `canal.mq.flatMessage` 必须为 `true`，否则消息格式与当前 JSON 消费方式不匹配。配置全集见 [公共配置](<./014_ES改造_Canal Server_公共配置.md>)；完整处理过程见 [处理链路总览](<./012_ES改造_Canal Server_处理链路总览.md>)。
 
-### 3.2 先看一条包含三行 UPDATE 的消息
+明确消息体与行数组的关系后，下面用一条多行 UPDATE 消息说明字段如何承载一次变更。
 
-假设三条消费记录的状态都由“异常（未确定）”改为“成功”，转换后进入同一条 UPDATE 消息。`type` 表示操作类型，`data` 保存更新后的行，`old` 保存变化字段的旧值；先用这三个字段读下面的例子。
+### 3.2 多行 UPDATE 消息示例
+
+假设三条消费记录的状态都由“异常（未确定）”改为“成功”，转换后进入同一条 UPDATE 消息。`type` 表示操作类型，`data` 保存更新后的行，`old` 保存变化字段的旧值。
 
 以下是合法 JSON 的精简示例。库表名、状态文字、时间和版本均为说明值，不是实测消息；为突出关系仅列四个业务列，省略 id、sql、类型映射等顶层字段。它不能作为完整生产行的字段清单。
 
@@ -90,15 +90,17 @@ Canal 将 MySQL 的行变化整理成 Java 对象 `FlatMessage`，再把对象�
 }
 ```
 
-数组下标从 0 开始，`data[0]` 就是第一条行数据。按示例逐条对照：
+数组下标从 0 开始，`data[i]` 与 `old[i]` 表示同一条行变更的更新后值和变化前值：
 
 - data[0] 与 old[0] 对应 c-1002：状态从“异常（未确定）”变为“成功”，版本 1 → 2。
 - data[1] 与 old[1] 对应 c-1004：状态从“异常（未确定）”变为“成功”，版本 4 → 5。
 - data[2] 与 old[2] 对应 c-1005：状态从“异常（未确定）”变为“成功”，版本 7 → 8。
 
-消费端遍历（依次读取）`data` 中的三行，即可处理三个更新；当前完整行覆盖方案不需要用 old 合并字段。old 的配对说明用于理解消息结构，多行、空值和变化列集合仍须实测。分区后如何保留对应关系见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
+消费端读取 `data` 中的三行即可处理三个更新。当前完整行覆盖方案不需要使用 `old` 合并字段。`old` 的配对关系、多行、空值和变化列集合仍须实测。分区后如何保留对应关系见 [Topic路由与多行分区](<./019_ES改造_Canal Server_Topic路由与多行分区.md>)。
 
-### 3.3 对照示例理解字段
+这个示例先确定了 `data` 和 `old` 的实际形态，下一步再分别说明 FlatMessage 的固定字段和行对象中的业务字段。
+
+### 3.3 字段说明
 
 **顶层字段：** 下表列出的都是 Canal `FlatMessage` 定义的字段，序列化后位于 JSON 对象的最外层，用来描述消息来源、操作类型和行数据，例如 `database`、`table`、`type`、`data`、`old`。
 
@@ -124,6 +126,8 @@ Canal 将 MySQL 的行变化整理成 Java 对象 `FlatMessage`，再把对象�
 
 **行值类型：** 源码中的 `data`、`old` 是 `List<Map<String,String>>`：非空列值通常以字符串输出，SQL NULL 对应 JSON null。消费端需按业务类型转换 `version` 等字段，不能按字符串字典序比较版本。
 
+字段说明完成后，再根据 `type` 区分 INSERT、UPDATE 和 DELETE 的数据方向；三类事件分别决定 `data` 和 `old` 如何被消费。
+
 ### 3.4 三种操作分别提供什么行数据
 
 “行前值”是操作执行前的列值，“行后值”是操作执行后的列值。一个 FlatMessage 只有一个操作类型；多条同类行变化可以放在同一个对象中，不同操作类型分别形成对象。
@@ -136,9 +140,9 @@ Canal 将 MySQL 的行变化整理成 Java 对象 `FlatMessage`，再把对象�
 
 这里说明的是字段取值方向，是否包含全部必要列还要检查源库配置和实际消息，不能看到 UPDATE 就默认 data 一定完整。
 
-### 3.5 为什么 UPDATE 要提供完整行
+### 3.5 UPDATE 完整行与 ES 写入条件
 
-字段契约就是生产端与消费端约定“消息必须携带哪些字段，以及这些字段如何解释”。
+字段契约规定生产端必须提供哪些字段，以及消费端如何解释这些字段。
 
 **项目字段契约：** 业务主键、操作类型、原始 `create_time`、来源映射和必要业务列按用途传递。新增、更新携带同次变更的行后数据及 `version`；DELETE 保留删除前的 `consume_id`（业务代码中可映射为 `consumeId`）、原始 `create_time` 等定位信息。
 
@@ -148,7 +152,9 @@ Canal 将 MySQL 的行变化整理成 Java 对象 `FlatMessage`，再把对象�
 
 完整性满足后，消费端可以读取 `data` 的完整行，按业务主键和 `version` 判断新旧，再用完整行覆盖写入 ES；不需要依赖 `old` 合并字段。
 
-### 3.6 重复收到消息时，为什么仍要携带版本
+因此，完整行是 UPDATE 能够覆盖写入 ES 的前提；在此基础上，还需要说明重复消息到达时如何避免旧版本覆盖新版本。
+
+### 3.6 重复消息的版本控制边界
 
 **重复消息与版本控制：** 独立事件 ID 用于识别同一次源数据变更，常用于事件级去重和追踪。当前 ES 同步允许重复请求，不为避免重复写入而增加这个字段。这里 `consume_id` 标识消费记录，`version` 标识该记录的业务版本；每次有效更新应递增版本，数据与版本必须来自同次变更。重复投递必须携带相同版本、相同操作和内容，并定位到同一个物理索引、同一个 ES 文档 ID。
 
@@ -234,23 +240,11 @@ private void doHandler(ElasticMessageTypeEnum type,
 
 ## 6 复核记录
 
-以下保留历史整理记录；其中完整链路现归 012，多行分区现归 019。本页只保留消息格式和字段契约。
+已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮复核了消息层次、FlatMessage 顶层字段、行内业务字段、多行 UPDATE 示例、三类操作的数据方向、UPDATE 完整行约束和重复消息版本控制；标题编号、关联链接和验证边界通过检查。未执行 Canal、RocketMQ 或 ES 联调。
 
-本轮执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)，将整条处理链路示例扩展为四条消费记录和三种操作类型，并复核了表格中的 Entry、FlatMessage、RocketMQ 消息及 ES 处理结果对应关系；未执行真实 Canal、RocketMQ 或 ES 联调。
+本轮按“消息体与行数据 → 多行消息示例 → 字段说明 → 操作类型 → UPDATE 完整行 → 重复消息版本控制”的顺序复核并优化了承接关系；未改变已确认的消息契约、业务规则和验证边界。
 
-本轮补充四条消费记录在 MySQL、Binlog、Canal 批次、FlatMessage、RocketMQ 和 ES 阶段的具体数据示例；示例不代表真实运行消息，未执行端到端联调。
-
-本轮删除原“用流程表确认每一步的交接”段落，改为按“输入数据→处理动作→处理后数据→下一步输入”重新组织 3.1，便于 Canal 初学者连续理解数据如何变化。
-
-本轮将“整条处理链路”和“按数据变化跟踪同一批数据”合并为一个章节标题，删除重复的抽象步骤列表，保留统一流程表和对应 FlatMessage JSON 示例。
-
-本轮将原流程表改为纯 Markdown 的分步骤列表，移除 HTML 换行标签，并让每个步骤、每条记录和每个处理结果单独换行展示，便于初学者逐项跟踪数据变化。
-
-本轮补充 RocketMQ 消费端消息格式总结，说明一个 RocketMQ 消息与一个 FlatMessage JSON 的对应关系、一个 FlatMessage 中多条 `data` 行变更的情况，以及核心字段含义；未执行真实 RocketMQ 消费联调。
-
-本轮补充包含三条 UPDATE 行变更的 FlatMessage JSON，并说明 `data[i]` 与 `old[i]` 的逐条对应关系；示例字段和时间值不代表真实运行消息。
-
-已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
+本轮根据用户确认，将口述版调整为“消息来源 → 消息体结构 → 消费端处理”的表达顺序，并将该组织规则加入“已确认规则”。
 
 ## 7 参考来源
 

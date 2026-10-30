@@ -18,4 +18,3 @@ Canal Client
 一句话总结：
 
 > **Deployer 是 Server 的部署载体；Adapter 是 Client 的具体实现。**
-

@@ -1,0 +1,39 @@
+{
+  "backup": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\canal-restructure-LB7Hfu",
+  "dir": "D:\\000\\sources\\eas\\002_消费记录分库分表、双写与ES 改造（15）",
+  "mapping": {
+    "012_ES改造_Canal Server_处理链路总览.md": "012_ES改造_Canal Server_处理链路总览.md",
+    "013_ES改造_Canal Server_部署拓扑.md": "013_ES改造_Canal Server_部署拓扑.md",
+    "014_ES改造_Canal Server_公共配置.md": "014_ES改造_Canal Server_公共配置.md",
+    "015_ES改造_Canal Server_destination过滤与分区路由.md": "019_ES改造_Canal Server_Topic路由与多行分区.md",
+    "016_ES改造_Canal Server_Binlog读取与过滤范围.md": "015_ES改造_Canal Server_源库连接与Binlog过滤.md",
+    "017_ES改造_Canal Server_Binlog读取与Entry解析.md": "016_ES改造_Canal Server_Entry结构与行事件解析.md",
+    "018_ES改造_Canal Server_消息格式与字段边界.md": "018_ES改造_Canal Server_消息格式与字段边界.md",
+    "019_ES改造_Canal Server_事务边界与特殊事件.md": "017_ES改造_Canal Server_事务边界与特殊事件.md",
+    "020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md": "020_ES改造_Canal Server_RocketMQ生产端实现.md",
+    "021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md": "021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md",
+    "022_ES改造_Canal Server_进度确认与单机恢复.md": "022_ES改造_Canal Server_本地位点与单机恢复.md",
+    "023_ES改造_RocketMQ_Canal Adapter 与自定义消费服务选型.md": "024_ES改造_RocketMQ_Canal Adapter 与自定义消费服务选型.md",
+    "024_ES改造_RocketMQ_RocketMQ 消费模型.md": "025_ES改造_RocketMQ_RocketMQ 消费模型.md",
+    "025_ES改造_自定义消费服务_.md": "026_ES改造_自定义消费服务_.md",
+    "026_ES改造_自定义消费服务_自定义 ES 消费服务处理逻辑.md": "027_ES改造_自定义消费服务_自定义 ES 消费服务处理逻辑.md"
+  },
+  "names": {
+    "12": "012_ES改造_Canal Server_处理链路总览.md",
+    "13": "013_ES改造_Canal Server_部署拓扑.md",
+    "14": "014_ES改造_Canal Server_公共配置.md",
+    "15": "015_ES改造_Canal Server_destination过滤与分区路由.md",
+    "16": "016_ES改造_Canal Server_Binlog读取与过滤范围.md",
+    "17": "017_ES改造_Canal Server_Binlog读取与Entry解析.md",
+    "18": "018_ES改造_Canal Server_消息格式与字段边界.md",
+    "19": "019_ES改造_Canal Server_事务边界与特殊事件.md",
+    "20": "020_ES改造_Canal Server_Binlog发送到RocketMQ核心实现.md",
+    "21": "021_ES改造_Canal Server_RocketMQ发布与Canal批次确认.md",
+    "22": "022_ES改造_Canal Server_进度确认与单机恢复.md",
+    "23": "023_ES改造_RocketMQ_Canal Adapter 与自定义消费服务选型.md",
+    "24": "024_ES改造_RocketMQ_RocketMQ 消费模型.md",
+    "25": "025_ES改造_自定义消费服务_.md",
+    "26": "026_ES改造_自定义消费服务_自定义 ES 消费服务处理逻辑.md"
+  },
+  "newName": "023_ES改造_Canal Server_监控与验收.md"
+}

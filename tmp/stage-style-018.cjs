@@ -1,0 +1,14 @@
+const fs=require('fs'),cp=require('child_process'),path=require('path');
+const root='D:/000/sources/eas',file='002_消费记录分库分表、双写与ES 改造（15）/018_ES改造_Canal Server_消息格式与字段边界.md';
+const git=(args,input)=>cp.execFileSync('git',['-c','safe.directory='+root,...args],{cwd:root,input,encoding:'utf8'});
+const now=fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n');
+const head=git(['show','HEAD:'+file]).replace(/\r\n/g,'\n');
+const hm=head.indexOf('## 6 复核记录\n'), hs=head.indexOf('## 7 参考来源\n');
+if(hm<0||hs<0)throw Error('HEAD section anchors missing');
+const wm=now.indexOf('## 6 复核记录\n'), ws=now.indexOf('## 7 参考来源\n');
+if(wm<0||ws<0)throw Error('working section anchors missing');
+const staged=now.slice(0,wm)+head.slice(hm,hs)+now.slice(ws);
+const hash=git(['hash-object','-w','--stdin'],staged).trim();
+git(['update-index','--cacheinfo','100644',hash,file]);
+git(['diff','--cached','--check']);
+console.log(git(['diff','--cached','--stat']));

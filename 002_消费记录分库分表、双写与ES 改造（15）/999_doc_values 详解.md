@@ -143,4 +143,3 @@ candidate.tradeTime == boundary.tradeTime
 **核验说明：** 已重新核对项目 Mapping、消费记录排序方案、`consumeId` 主键设计，以及 Elasticsearch 7.17.15 中 `doc_values`、BKD 点值索引、Segment、排序、优先队列、`search_after`、Refresh、PIT 和 `_source` 的相关语义。已修正时间戳示例、分页边界、`_source` 前提、排序唯一性和 Refresh 生命周期表述。未连接线上集群，因此实际响应格式、分片数量、缓存命中情况和具体 Profile 路径仍需以线上环境为准。
 
 已完成约定核验与逐项确认
-

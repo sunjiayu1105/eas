@@ -1,0 +1,14 @@
+const fs=require('fs'),cp=require('child_process'),path=require('path');
+const root='D:/000/sources/eas',file='002_消费记录分库分表、双写与ES 改造（15）/018_ES改造_Canal Server_消息格式与字段边界.md';
+const git=(args,input)=>cp.execFileSync('git',['-c','safe.directory='+root,...args],{cwd:root,input,encoding:'utf8'});
+if(git(['diff','--cached','--name-only']).trim())throw Error('Existing staged changes');
+let head=git(['show','HEAD:'+file]).replace(/\r\n/g,'\n'),now=fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n');
+const history=/## 6 复核记录\n[\s\S]*?(?=## 7 参考来源)/;
+let staged=now.replace(history,head.match(history)[0]);
+const before=fs.readFileSync(path.join(root,'tmp/beginner-018-before.txt'),'utf8');
+if(before.replace(history,head.match(history)[0])!==head)throw Error('Unexpected baseline changes');
+let broken=[];for(const m of now.matchAll(/\]\(<(\.\/[^>]+)>\)/g))if(!fs.existsSync(path.resolve(root,path.dirname(file),m[1])))broken.push(m[1]);
+if(broken.length)throw Error('Broken links '+broken);
+console.log('Links valid; prior history deletion excluded');
+const hash=git(['hash-object','-w','--stdin'],staged).trim();git(['update-index','--cacheinfo','100644',hash,file]);
+console.log(git(['diff','--cached','--check']));console.log(git(['diff','--cached','--stat']));
