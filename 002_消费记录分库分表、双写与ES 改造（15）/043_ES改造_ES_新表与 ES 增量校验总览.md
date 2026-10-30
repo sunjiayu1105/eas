@@ -63,7 +63,7 @@ Binlog、Canal 和 RocketMQ 继续承担 MySQL 到 ES 的正常同步职责，�
 
 - 所有写入路径是否可靠维护 `update_time`，并已建立 `(update_time, consume_id)` 索引？
 - 5 分钟安全延迟和 10 分钟重叠窗口是否覆盖实际事务提交、同步积压和调度延迟？
-- 首次扫描、首屏回看和同轮后续分页在并发更新下是否会产生遗漏？
+- 首次扫描、每轮回看和同轮分页在并发更新下是否会产生遗漏？
 - 游标更新与当前页处理是否能在故障恢复后避免漏查和重复副作用？
 - MySQL 与 ES 的业务版本读取方式、字段比较规则及 ES 客户端的 `external`、`external_gte` 行为是否已验证？
 - Redis 分片锁的 TTL、续期、持有者校验和异常释放是否已确定？
@@ -78,6 +78,6 @@ Binlog、Canal 和 RocketMQ 继续承担 MySQL 到 ES 的正常同步职责，�
 
 ## 7 执行记录
 
-- 本轮按“方案边界 → 扫描窗口 → 复合游标 → 比较补偿 → 恢复边界”的顺序重组面试口述内容。
-- 补充了首轮与后续轮次、首屏与后续分页、页成功与页失败的区别，并同步文档分工链接。
-- 已完成静态文档整理；未运行 MySQL、Canal、RocketMQ 或 Elasticsearch 服务，运行时行为仍待验证。
+- 本轮执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 两轮，重点检查逻辑是否层层递进、表述是否适用于面试口述。
+- 第 1 轮统一 043、048、049 的轮次回看与同轮分页表述；第 2 轮复核方案、窗口、游标、比较补偿和恢复之间的口述顺序，未发现需要继续修改的同类问题。
+- 已执行静态文档、链接和差异检查；未运行 MySQL、Canal、RocketMQ 或 Elasticsearch 服务，运行时行为仍待验证。
