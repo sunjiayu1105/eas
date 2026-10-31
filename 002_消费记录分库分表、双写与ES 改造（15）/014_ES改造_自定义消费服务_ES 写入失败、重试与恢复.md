@@ -1,4 +1,4 @@
-# 014_ES改造_ES_写入失败、重试与恢复
+# 014_ES改造_自定义消费服务_ES 写入失败、重试与恢复
 
 ## 1 已确认规则
 
@@ -80,6 +80,8 @@ MySQL DELETE 不调用 ES Delete API；删除事件的消息处理边界由 032 
 ## 5 复核说明
 
 本轮删除了重复的“原主题”块，按“事件处理 → 结果分类 → 消息确认与重投 → 补偿恢复 → 生命周期边界”的顺序重组内容。
+
+本次重命名复核完成时间：2026-10-31 14:10。
 
 已执行 [java-interview-doc-review-loop](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review-loop\\SKILL.md) 的整理要求，并按 [java-interview-doc-review](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review-loop\\SKILL.md) 复核逻辑是否层层递进、表述是否适用于面试口述，以及异常分类、确认边界和验证状态。
 
