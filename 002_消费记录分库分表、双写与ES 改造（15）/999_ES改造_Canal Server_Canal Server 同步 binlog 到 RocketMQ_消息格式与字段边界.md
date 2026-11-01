@@ -170,7 +170,7 @@ Canal 将 MySQL 行变化组装为 `FlatMessage` 对象，并将其序列化为 
 
 **参考文章：** 消费代码把消息解析为 JSON，从 `data` 读取订单列表，再按 `type` 分派 INSERT、UPDATE、DELETE。
 
-参考文章中对应的消费者代码见 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案.md>) 第 1038 行附近，核心逻辑如下：
+参考文章中对应的消费者代码见 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_Canal 同步 MySQL binlog 到 ES_参考文章.md>) 第 1038 行附近，核心逻辑如下：
 
 ```java
 public void ordersMessageHandle(String message) throws IOException {

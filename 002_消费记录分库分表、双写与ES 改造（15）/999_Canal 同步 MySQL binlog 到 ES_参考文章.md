@@ -9,6 +9,9 @@ description: "上一篇文章搞定了Elasticsearch8 的集群搭建，这篇准
 tags:
   - "clippings"
 ---
+
+# 999_Canal 同步 MySQL binlog 到 ES_参考文章
+
 5 人赞同了该文章
 
 目录

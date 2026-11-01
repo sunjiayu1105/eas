@@ -105,6 +105,6 @@ Canal Message 与 RocketMQ Message 是不同包中的类型，伪代码为便于
 
 ### 7.3 参考文章与验证边界
 
-- [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案.md>)：用于核对参考文章中的 Canal、RocketMQ 实验环境和消息发送示例；文章版本、脚本、参数和演示结果不代表当前项目已经部署或验证。
+- [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_Canal 同步 MySQL binlog 到 ES_参考文章.md>)：用于核对参考文章中的 Canal、RocketMQ 实验环境和消息发送示例；文章版本、脚本、参数和演示结果不代表当前项目已经部署或验证。
 
 上述来源用于支持源码和文章的静态核对，不等于当前项目已经完成发行包验证、Broker 持久化验证或 Canal、RocketMQ、ES 联调。

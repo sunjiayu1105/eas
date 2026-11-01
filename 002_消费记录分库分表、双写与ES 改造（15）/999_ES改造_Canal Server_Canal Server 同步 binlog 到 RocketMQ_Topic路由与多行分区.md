@@ -54,7 +54,7 @@ canal.mq.partitionsNum=<positive-partition-count>
 
 ## 4 参考文章与项目设计的区别
 
-参考文章 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案.md>) 的版本、脚本和演示结果只代表文章环境，不能证明项目已经实现或验证。
+参考文章 [使用 Canal + RocketMQ + Elasticsearch8 探索索引冷热节点部署方案](<./999_Canal 同步 MySQL binlog 到 ES_参考文章.md>) 的版本、脚本和演示结果只代表文章环境，不能证明项目已经实现或验证。
 
 ### 4.1 分区与消息路由
 
