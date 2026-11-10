@@ -53,7 +53,7 @@ MySQL 和 ES 的清理任务相互独立。不能把 MySQL 已删除推导成 ES
 
 后端必须校验前端时间条件，并在 ES 查询中加入 `create_time >= L`。用户指定的日期范围与当前年份及前 4 个自然年范围取交集；列表、总数和聚合使用相同边界。
 
-增量校验使用 [022_ES改造_ES_新表与 ES 增量校验_整体实现](<./022_ES改造_ES_新表与 ES 增量校验_整体实现.md>) 的 update_time 扫描入口。扫描当前仍存在于 MySQL 的记录后，再按 create_time 判断是否在保留范围内：
+增量校验使用 [022_ES改造_ES_新表与 ES 增量校验](<./022_ES改造_ES_新表与 ES 增量校验.md>) 的 update_time 扫描入口。扫描当前仍存在于 MySQL 的记录后，再按 create_time 判断是否在保留范围内：
 
 - 超期记录标记为范围排除，不作为内容差异补偿；
 - 范围内记录继续比较 MySQL 与 ES，缺失或不一致才进入补偿；
@@ -119,4 +119,3 @@ PUT /_ilm/policy/consume-normal
 本次复核完成时间：2026-11-01 16:45
 
 已执行 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md)
-
