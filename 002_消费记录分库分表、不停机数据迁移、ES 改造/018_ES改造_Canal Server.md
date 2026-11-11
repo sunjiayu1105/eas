@@ -1,4 +1,4 @@
-# 016_ES改造_Canal Server
+# 018_ES改造_Canal Server
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。
 
@@ -25,7 +25,7 @@
 
 ## 3 分文档核心内容与实现顺序
 
-本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`012` 只负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
+本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`014` 只负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
 
 1. **部署拓扑**：说明单机 Canal Server、`db0`/`db1` 两个 destination、RocketMQ 和下游 ES 服务的连接关系，以及单机故障边界，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑.md>)。
 2. **公共配置**：说明 `canal.properties`、destination 实例配置、RocketMQ 参数和本地位点模板入口，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置.md>)。
@@ -137,6 +137,6 @@
 
 ## 5 复核记录
 
-本轮将原 018 的完整数据链路归入本页，原 012 的总览和导航职责保留。
+本轮将原 020 的完整数据链路归入本页，原 014 的总览和导航职责保留。
 
 已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
