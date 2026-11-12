@@ -8,35 +8,38 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：1466
+口述内容字符数：1506
+
+`Executors` 是 Java 提供的工具类，通过静态工厂方法创建线程池。下表的方法声明省略 `public static`，均通过 `Executors` 调用；参数和容量为 Java 8 默认规则，不是项目生产配置。
 
 ### 2.1 普通任务
 
-`Executors` 是 Java 提供的工具类，通过静态工厂方法创建不同类型的线程池。下面的方法声明省略 `public static`。
-
-`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，核心线程数和最大线程数都为 nThreads，线程按需创建，多出的任务排队等待。使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。适合提交规模受控、需要限制同时执行任务数的后台批处理。
-
-`ExecutorService newSingleThreadExecutor()`：创建单线程池，返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。使用 LinkedBlockingQueue，默认容量同样为 Integer.MAX_VALUE，通常视为无界队列。适合需要串行处理的后台工作，例如由同一执行器依次更新内存统计结果。
-
-`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`。核心线程数为 0，不保留常驻核心线程；有任务时优先复用空闲线程，没有可用线程就尝试新建，但不超过最大线程数 `Integer.MAX_VALUE`。使用容量为 0 的 SynchronousQueue，不存储任务，而是直接交接给等待任务的线程。线程空闲达到 60 秒后可以回收。适合提交规模受控、执行时间短且到达间隔不固定的异步任务，不宜直接承接不受控的突发请求。
+| 方法声明 | 创建类型与实现 | 线程数量 | 队列类型与容量 | 执行特点与适用场景 |
+| --- | --- | --- | --- | --- |
+| `ExecutorService newFixedThreadPool(int nThreads)` | 固定线程池；实际对象为 `ThreadPoolExecutor` | 核心数、最大数均为 `nThreads`，按需创建 | `LinkedBlockingQueue`；默认容量为 `Integer.MAX_VALUE`，约 21 亿，通常视为无界 | 多出的任务排队；适合提交规模受控、需要限制同时执行任务数的后台批处理 |
+| `ExecutorService newSingleThreadExecutor()` | 单线程池；返回包装对象，内部使用 `ThreadPoolExecutor` | 核心数、最大数均为 1 | `LinkedBlockingQueue`；默认容量为 `Integer.MAX_VALUE`，通常视为无界 | 串行处理普通任务；适合依次更新内存统计结果等后台工作，外部线程访问仍需同步 |
+| `ExecutorService newCachedThreadPool()` | 缓存线程池；实际对象为 `ThreadPoolExecutor` | 核心数为 0，不保留常驻核心线程；最大数为 `Integer.MAX_VALUE` | `SynchronousQueue`；容量为 0，不存储任务，直接交接 | 优先复用空闲线程，没有可用线程就尝试新建；空闲达到 60 秒可回收。适合规模受控、执行时间短且到达间隔不固定的异步任务，不宜直接承接不受控的突发请求 |
 
 ### 2.2 定时任务
 
-`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：创建调度线程池，实际对象是 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。使用无界延迟队列 DelayedWorkQueue，没有可配置的固定容量上限。适合延迟执行或多个独立周期任务，例如定期刷新不同缓存。
-
-`ScheduledExecutorService newSingleThreadScheduledExecutor()`：创建单线程调度池，返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。同样使用无界 DelayedWorkQueue，没有可配置的固定容量上限。适合需要串行执行的轻量定时工作，例如周期采集本地统计信息；长任务会拖延其他到期任务。
+| 方法声明 | 创建类型与实现 | 线程数量 | 队列类型与容量 | 执行特点与适用场景 |
+| --- | --- | --- | --- | --- |
+| `ScheduledExecutorService newScheduledThreadPool(int corePoolSize)` | 调度线程池；实际对象为 `ScheduledThreadPoolExecutor`，继承 `ThreadPoolExecutor` | 核心数由参数指定，执行并发主要由核心数决定 | 无界 `DelayedWorkQueue`；没有可配置的固定容量上限 | 支持延迟和周期任务；适合多个独立定时工作，例如定期刷新不同缓存 |
+| `ScheduledExecutorService newSingleThreadScheduledExecutor()` | 单线程调度池；返回包装对象，内部使用 `ScheduledThreadPoolExecutor`，后者继承 `ThreadPoolExecutor` | 核心数为 1，用一个工作线程执行调度任务 | 无界 `DelayedWorkQueue`；没有可配置的固定容量上限 | 适合需要串行执行的轻量定时工作，例如周期采集本地统计信息；长任务会拖延其他到期任务 |
 
 可以通过返回对象调用 `schedule` 等方法，执行延迟或周期任务；任务到期后仍需等待可用线程。
 
 ### 2.3 并行计算
 
-`ExecutorService newWorkStealingPool()`：创建工作窃取线程池，实际对象是 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分为独立子任务的 CPU 计算，例如分块统计数据后汇总结果，不适合直接执行大量阻塞 I/O，也不保证执行顺序。内部使用多个可扩容的工作队列，工厂方法不提供队列容量参数，不能套用普通线程池的单个阻塞队列容量模型。
+| 方法声明 | 创建类型与实现 | 线程数量 | 队列机制与容量 | 执行特点与适用场景 |
+| --- | --- | --- | --- | --- |
+| `ExecutorService newWorkStealingPool()` | 工作窃取线程池；实际对象为 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层 | 默认目标并行度为 JVM 可用处理器数，不是严格的总线程数上限 | 多个可扩容工作队列；工厂方法不提供容量参数，不能套用单个阻塞队列容量模型 | 通过工作窃取分担任务，不保证执行顺序；适合可拆分的 CPU 计算，例如分块统计后汇总，不适合直接执行大量阻塞 I/O |
 
 ### 2.4 使用边界
 
 固定池、单线程池和调度池可能积压任务，缓存池可能创建过多线程。选型要匹配任务特点，并控制线程数量和提交规模。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:41>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:44>)
 
 ## 3 详细方案
 
@@ -146,6 +149,8 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 4 已确认规则
 
+- 面试口述使用表格整理各类线程池，保留方法声明、中文类型、实现关系、线程数量、队列及适用场景。
+
 - 面试口述中逐项说明线程池的适用场景，并保留提交规模、任务耗时或串行要求等必要条件。
 
 - 口述中说明各线程池的队列类型及容量；工作窃取池单独说明其多队列机制和容量配置边界。
@@ -157,7 +162,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
 - 面试口述应能脱离其他文档编号独立理解。
 - 面试口述优先展示工厂方法的声明返回接口类型、参数和使用特点。
-- 保留口述版现有主题结构；口述说明与 ThreadPoolExecutor 的必要关系，包装类全名等细节放入详细方案，区分声明返回类型与实际对象类型。
+- 保留普通任务、定时任务和并行计算的分类；口述说明与 ThreadPoolExecutor 的必要关系，包装类全名等细节放入详细方案，区分声明返回类型与实际对象类型。
 
 ## 5 待确认或待验证事项
 
@@ -184,4 +189,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 22:28：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 22:31：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
