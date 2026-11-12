@@ -1,4 +1,4 @@
-# 017_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池
+# 016_线程池_Java里面有哪些内置的线程池
 
 ## 1 问题
 
@@ -51,7 +51,7 @@ ThreadPoolExecutor 是可配置的实现类，ScheduledThreadPoolExecutor 支持
 
 ## 4 已确认规则
 
-- 本篇作为 014 的分文档，独立回答“Java 8 里面有哪些常见的内置线程池？”。
+- 本篇作为通用线程池文档，独立回答“Java 8 里面有哪些常见的内置线程池？”。
 
 ## 5 待确认或待验证事项
 
@@ -59,4 +59,4 @@ ThreadPoolExecutor 是可配置的实现类，ScheduledThreadPoolExecutor 支持
 
 ## 6 复核记录
 
-2026-11-12 09:43：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 10:16：已执行 [java-interview-doc-review](C:/Users/Administrator/.codex/skills/java-interview-doc-review/SKILL.md)。
