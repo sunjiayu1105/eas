@@ -8,25 +8,33 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：495
+口述内容字符数：695
 
 **普通任务**
 
-`Executors` 是创建线程池的工具类。`newFixedThreadPool(nThreads)` 创建固定线程池，最多使用指定数量的线程；`newSingleThreadExecutor()` 创建单线程池，串行处理任务；`newCachedThreadPool()` 创建缓存线程池，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。这三种底层都使用 `ThreadPoolExecutor`。
+`Executors` 是创建线程池的工具类。
+
+`newFixedThreadPool(nThreads)` 创建固定线程池，返回 `ThreadPoolExecutor`，最多使用指定数量的线程；
+
+`newSingleThreadExecutor()` 创建单线程池，返回 `Executors.FinalizableDelegatedExecutorService` 包装对象，内部使用 `ThreadPoolExecutor`，串行处理任务；
+
+`newCachedThreadPool()` 创建缓存线程池，返回 `ThreadPoolExecutor`，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
+
+这三种底层都使用 `ThreadPoolExecutor`。
 
 **定时任务**
 
-`Executors.newScheduledThreadPool(corePoolSize)` 和 `Executors.newSingleThreadScheduledExecutor()` 都基于 `ScheduledThreadPoolExecutor`，支持延迟和周期任务，分别按指定核心线程数和单个工作线程执行。
+`Executors.newScheduledThreadPool(corePoolSize)` 返回 `ScheduledThreadPoolExecutor`；`Executors.newSingleThreadScheduledExecutor()` 返回 `Executors.DelegatedScheduledExecutorService` 包装对象，内部使用 `ScheduledThreadPoolExecutor`。它们都支持延迟和周期任务，分别按指定核心线程数和单个工作线程执行。
 
 **并行计算**
 
-`Executors.newWorkStealingPool()` 基于 `ForkJoinPool`，默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
+`Executors.newWorkStealingPool()` 返回 `ForkJoinPool`，默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
 
 **使用边界**
 
 固定池和单线程池容易堆积任务，缓存池容易创建过多线程，选型时还要考虑资源上限。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:33>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:41>)
 
 ## 3 详细方案
 
@@ -140,6 +148,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
 - 面试口述应能脱离其他文档编号独立理解。
 - 面试口述需明确给出 Java 工厂方法和底层实现类名，并区分二者。
+- 保留口述版现有结构，补充每个方法返回的实际对象类型，并注明包装类与底层实现的关系。
 
 ## 5 待确认或待验证事项
 
@@ -166,4 +175,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 14:03：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 14:13：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
