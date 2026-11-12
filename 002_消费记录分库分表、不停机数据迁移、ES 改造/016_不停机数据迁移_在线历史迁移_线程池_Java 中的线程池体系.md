@@ -4,11 +4,11 @@
 
 ## 1 问题
 
-Java 中的线程池体系是怎样的？主要接口、实现类和工具类之间是什么关系？这些接口、实现类和工具类与 ThreadPoolExecutor 之间分别是什么关系？
+Java 中的线程池体系是怎样的？主要接口、实现类和工具类之间是什么关系？这些接口、实现类和工具类与 ThreadPoolExecutor 之间分别是什么关系？ThreadPoolExecutor 是不是整个体系中的底层实现类？
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：597
+口述内容字符数：654
 
 **接口定义能力**
 
@@ -20,9 +20,9 @@ ScheduledExecutorService 再扩展延迟和周期调度能力。
 
 AbstractExecutorService 实现 ExecutorService，提供 submit 等通用逻辑。ThreadPoolExecutor 继承这个抽象类，因此也是 ExecutorService 和 Executor 的实现，具体负责线程管理、排队和执行任务。
 
-**其他实现类与它的关系**
+**它不是整个体系共同的底层**
 
-ScheduledThreadPoolExecutor 是它的子类，并实现 ScheduledExecutorService；普通 ThreadPoolExecutor 不实现这个调度接口。ForkJoinPool 与它有相同的父类 AbstractExecutorService，但两者互不继承，执行机制不同。
+ThreadPoolExecutor 是普通任务线程池的核心实现，也是调度线程池的父类，但不是所有线程池共同的底层。ScheduledThreadPoolExecutor 继承它并实现 ScheduledExecutorService，普通 ThreadPoolExecutor 不实现这个调度接口。ForkJoinPool 是另一条独立实现分支，与它同样继承 AbstractExecutorService，两者互不继承。
 
 **工具类提供创建入口**
 
@@ -105,6 +105,16 @@ classDiagram
 
 ### 3.4 三个具体类：采用不同的执行机制
 
+**ThreadPoolExecutor 是不是整个体系中的底层实现类**
+
+它是一个具体线程池实现，但不能说整个体系都以它为底层。判断时需要区分以下三种关系：
+
+- 基于它实现：Executors 创建的固定线程池、缓存线程池和单线程池，底层使用 ThreadPoolExecutor；单线程池对其进行了包装。
+- 继承它扩展：ScheduledThreadPoolExecutor 继承它，增加延迟和周期调度能力。
+- 与它并列实现：ForkJoinPool 和它都继承 AbstractExecutorService，两者互不继承；ForkJoinPool 不依赖 ThreadPoolExecutor 执行任务。
+
+因此，不能把 ThreadPoolExecutor 的工作队列、核心线程数和最大线程数等机制当成所有线程池的通用实现方式。下面分别说明这三类具体实现。
+
 **ThreadPoolExecutor：普通异步任务**
 
 它继承 `AbstractExecutorService`，管理工作线程、等待队列和拒绝策略。核心线程数与最大线程数由调用方配置，例如核心数和最大数都为 2，表示池内最多使用 2 条工作线程；这只是示例配置。
@@ -158,6 +168,7 @@ try {
 
 ## 4 已确认规则
 
+- 明确 ThreadPoolExecutor 是具体实现之一，不是所有线程池共同的底层；ForkJoinPool 是独立实现分支。
 - 问题与正文同步说明主要类型之间的关系，并明确各类型与 ThreadPoolExecutor 的继承、接口实现或创建关系。
 - 本文围绕“Java 中的线程池体系”展开，区分接口、抽象类、具体实现类和工具类。
 - 使用关系图和示例解释主要类型之间的关系。
@@ -171,4 +182,4 @@ try {
 
 ## 6 复核记录
 
-2026-11-12 17:59：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 18:06：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
