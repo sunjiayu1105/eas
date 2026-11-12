@@ -8,35 +8,35 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：834
+口述内容字符数：890
 
-**普通任务**
+### 2.1 普通任务
 
 `Executors` 是 Java 提供的工具类，通过静态工厂方法创建不同类型的线程池。下面的方法声明省略 `public static`。
 
-`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，最多使用指定数量的线程，多出的任务排队等待。
+`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，核心线程数和最大线程数都为 nThreads，线程按需创建，多出的任务排队等待。
 
-`ExecutorService newSingleThreadExecutor()`：返回包装对象，内部使用 `ThreadPoolExecutor`，用一个工作线程串行处理任务。
+`ExecutorService newSingleThreadExecutor()`：返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。
 
 `ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
 
-**定时任务**
+### 2.2 定时任务
 
 `ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：实际创建 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。
 
 `ScheduledExecutorService newSingleThreadScheduledExecutor()`：返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。
 
-这两种方法返回的接口都支持 `schedule` 等延迟和周期调度方法。
+可以通过返回对象调用 `schedule` 等方法，执行延迟或周期任务；任务到期后仍需等待可用线程。
 
-**并行计算**
+### 2.3 并行计算
 
 `ExecutorService newWorkStealingPool()`：实际创建 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
 
-**使用边界**
+### 2.4 使用边界
 
-固定池和单线程池容易堆积任务，缓存池容易创建过多线程，选型时还要考虑资源上限。
+固定池、单线程池和调度池可能积压任务，缓存池可能创建过多线程。选型要匹配任务特点，并控制线程数量和提交规模。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:43>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:41>)
 
 ## 3 详细方案
 
@@ -147,7 +147,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 ## 4 已确认规则
 
 - 口述版逐项说明所创建线程池与 ThreadPoolExecutor 的关系，区分直接创建、包装、继承和独立实现。
-- 使用 `java-interview-doc-review-loop` 对 016 进行连续整理与复核。
+- 使用 `java-interview-doc-review-loop` 对本文进行连续整理与复核。
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
 - 面试口述应能脱离其他文档编号独立理解。
 - 面试口述优先展示工厂方法的声明返回接口类型、参数和使用特点。
@@ -155,14 +155,14 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 5 待确认或待验证事项
 
-- 本次核对了 Java 8 API 和 OpenJDK 8 工厂源码，未执行 Java 示例或性能测试，不能据此认定项目运行效果。
+- 本次按 Java 8 行为复核说明，未联网重新核验 API 与 OpenJDK 源码；来源链接保留供查阅。未执行 Java 示例或性能测试，不能据此认定项目运行效果。
 - 本地链接完成静态定位检查，未在 Codex 阅读器中实际点击验证。
 
 ## 6 异议与分析
 
 **拒绝不只发生在队列满时**
 
-原材料将固定池拒绝条件限定为队列已满，遗漏了关闭后拒绝新任务的情况。已按 3.2 的 Java 8 API 修正。
+固定池关闭后也会拒绝新任务，不能将拒绝条件限定为队列已满，详见 3.2。
 
 **单线程调度不保证按提交顺序执行，也不自动解决所有线程安全问题**
 
@@ -170,12 +170,12 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 **默认容量大不等于没有上限**
 
-原材料的“无限创建线程”“任务无限堆积”“工作窃取池无明确上限”不准确。已区分默认整数上限、实际资源限制及目标并行度，依据见 3.2、3.4、3.6。
+默认整数上限与实际资源限制是不同概念，目标并行度也不是严格的总线程数上限，依据见 3.2、3.4、3.6。
 
 **工厂方法并非一律不适合生产**
 
-原材料引用开发手册的禁止性要求，但未给出可核对的版本和条款。本篇改为说明可验证的默认配置及资源风险，不把未核实的规范说成 Java API 限制。
+团队编码规范与 Java API 能力应分开说明。本篇介绍工厂方法的默认配置及资源风险，不将编码规范表述成 Java 本身禁止调用。
 
 ## 7 复核记录
 
-2026-11-12 18:14：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 22:06：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
