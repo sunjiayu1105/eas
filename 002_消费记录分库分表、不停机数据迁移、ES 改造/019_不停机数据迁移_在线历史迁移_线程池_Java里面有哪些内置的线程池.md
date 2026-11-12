@@ -8,7 +8,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：890
+口述内容字符数：926
 
 ### 2.1 普通任务
 
@@ -16,21 +16,21 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 `ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，核心线程数和最大线程数都为 nThreads，线程按需创建，多出的任务排队等待。
 
-`ExecutorService newSingleThreadExecutor()`：返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。
+`ExecutorService newSingleThreadExecutor()`：创建单线程池，返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。
 
 `ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
 
 ### 2.2 定时任务
 
-`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：实际创建 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。
+`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：创建调度线程池，实际对象是 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。
 
-`ScheduledExecutorService newSingleThreadScheduledExecutor()`：返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。
+`ScheduledExecutorService newSingleThreadScheduledExecutor()`：创建单线程调度池，返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。
 
 可以通过返回对象调用 `schedule` 等方法，执行延迟或周期任务；任务到期后仍需等待可用线程。
 
 ### 2.3 并行计算
 
-`ExecutorService newWorkStealingPool()`：实际创建 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
+`ExecutorService newWorkStealingPool()`：创建工作窃取线程池，实际对象是 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
 
 ### 2.4 使用边界
 
@@ -146,6 +146,8 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 4 已确认规则
 
+- 口述中每个工厂方法先用中文说明创建的线程池类型，再说明返回对象和实现关系。
+
 - 口述版逐项说明所创建线程池与 ThreadPoolExecutor 的关系，区分直接创建、包装、继承和独立实现。
 - 使用 `java-interview-doc-review-loop` 对本文进行连续整理与复核。
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
@@ -178,4 +180,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 22:06：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 22:12：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
