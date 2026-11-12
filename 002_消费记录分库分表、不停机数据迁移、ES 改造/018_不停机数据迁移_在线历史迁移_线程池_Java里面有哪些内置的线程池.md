@@ -8,35 +8,35 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：622
+口述内容字符数：834
 
 **普通任务**
 
 `Executors` 是 Java 提供的工具类，通过静态工厂方法创建不同类型的线程池。下面的方法声明省略 `public static`。
 
-`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，最多使用指定数量的线程，多出的任务排队等待。
+`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，最多使用指定数量的线程，多出的任务排队等待。
 
-`ExecutorService newSingleThreadExecutor()`：创建单线程池，用一个工作线程串行处理任务。
+`ExecutorService newSingleThreadExecutor()`：返回包装对象，内部使用 `ThreadPoolExecutor`，用一个工作线程串行处理任务。
 
-`ExecutorService newCachedThreadPool()`：创建缓存线程池，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
+`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
 
 **定时任务**
 
-`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：创建调度线程池，按指定核心线程数执行任务。
+`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：实际创建 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。
 
-`ScheduledExecutorService newSingleThreadScheduledExecutor()`：创建单线程调度池，用一个工作线程执行任务。
+`ScheduledExecutorService newSingleThreadScheduledExecutor()`：返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。
 
 这两种方法返回的接口都支持 `schedule` 等延迟和周期调度方法。
 
 **并行计算**
 
-`ExecutorService newWorkStealingPool()`：创建工作窃取池，默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
+`ExecutorService newWorkStealingPool()`：实际创建 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
 
 **使用边界**
 
 固定池和单线程池容易堆积任务，缓存池容易创建过多线程，选型时还要考虑资源上限。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:43>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/018_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池.md:43>)
 
 ## 3 详细方案
 
@@ -45,8 +45,8 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 `Executors` 是工具类，`newFixedThreadPool` 等是它提供的工厂方法。`ExecutorService` 是任务提交、关闭等操作的接口，不能把这些名称都当成不同的线程池实现类。
 
 - 固定池和缓存池：实际返回 `ThreadPoolExecutor`。单线程池实际返回 `Executors.FinalizableDelegatedExecutorService` 包装对象，内部使用 `ThreadPoolExecutor`，避免调用方将其改成多线程池。
-- 调度池：实际返回 `ScheduledThreadPoolExecutor`。单线程调度池实际返回 `Executors.DelegatedScheduledExecutorService` 包装对象，内部使用 `ScheduledThreadPoolExecutor`。
-- 工作窃取池：底层使用 `ForkJoinPool`，采用不同的任务调度机制。
+- 调度池：实际返回 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`。单线程调度池实际返回 `Executors.DelegatedScheduledExecutorService` 包装对象，内部使用 `ScheduledThreadPoolExecutor`。
+- 工作窃取池：底层使用 `ForkJoinPool`，它与 `ThreadPoolExecutor` 都继承 `AbstractExecutorService`，但两者互不继承，采用不同的任务调度机制。
 
 来源：[OpenJDK 8 Executors 源码](https://github.com/openjdk/jdk8u/blob/master/jdk/src/share/classes/java/util/concurrent/Executors.java)。以下分别说明六个常用工厂方法；不是 Java 所有执行器实现的完整清单。
 
@@ -142,15 +142,16 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 先判断任务是否需要串行、定时或并行计算，再确定线程数、排队容量和拒绝处理。工厂方法提供的是默认组合，不代表默认组合适合当前项目。
 
-例如提交速度长期高于处理速度时，固定池会堆积任务，缓存池会倾向于增加线程。历史迁移需要显式控制数据库压力，具体选择与有界队列方案由 [线程池类型选择](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池设计_线程池类型选择.md:29>) 展开，本篇不将示例参数写成项目实际配置。
+例如提交速度长期高于处理速度时，固定池会堆积任务，缓存池会倾向于增加线程。历史迁移需要显式控制数据库压力，具体选择与有界队列方案由 [线程池类型选择](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/021_不停机数据迁移_在线历史迁移_线程池设计_线程池类型选择.md:29>) 展开，本篇不将示例参数写成项目实际配置。
 
 ## 4 已确认规则
 
+- 口述版逐项说明所创建线程池与 ThreadPoolExecutor 的关系，区分直接创建、包装、继承和独立实现。
 - 使用 `java-interview-doc-review-loop` 对 016 进行连续整理与复核。
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
 - 面试口述应能脱离其他文档编号独立理解。
 - 面试口述优先展示工厂方法的声明返回接口类型、参数和使用特点。
-- 保留口述版现有主题结构；底层实现类和包装细节放入详细方案，并区分声明返回类型与实际对象类型。
+- 保留口述版现有主题结构；口述说明与 ThreadPoolExecutor 的必要关系，包装类全名等细节放入详细方案，区分声明返回类型与实际对象类型。
 
 ## 5 待确认或待验证事项
 
@@ -177,4 +178,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 14:56：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 18:14：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
