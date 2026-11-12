@@ -1,4 +1,4 @@
-# 016_线程池_Java里面有哪些内置的线程池
+# 016_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池
 
 ## 1 问题
 
@@ -47,7 +47,7 @@ ThreadPoolExecutor 是可配置的实现类，ScheduledThreadPoolExecutor 支持
 
 ### 3.3 依据与分工
 
-[Executors Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html)、[ThreadPoolExecutor API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)、[ForkJoinPool API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html) 为 API 查阅入口；本次未联网复核。项目为什么选择显式构造，见 [019 线程池类型选择](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池_线程池类型选择.md>)。
+[Executors Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html)、[ThreadPoolExecutor API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)、[ForkJoinPool API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html) 为 API 查阅入口；本次未联网复核。项目为什么选择显式构造，见 [019 线程池类型选择](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/019_不停机数据迁移_在线历史迁移_线程池设计_线程池类型选择.md>)。
 
 ## 4 已确认规则
 
@@ -59,4 +59,4 @@ ThreadPoolExecutor 是可配置的实现类，ScheduledThreadPoolExecutor 支持
 
 ## 6 复核记录
 
-2026-11-12 10:16：已执行 [java-interview-doc-review](C:/Users/Administrator/.codex/skills/java-interview-doc-review/SKILL.md)。
+2026-11-12 10:37：已执行 [java-interview-doc-review](C:/Users/Administrator/.codex/skills/java-interview-doc-review/SKILL.md)。
