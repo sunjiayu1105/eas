@@ -8,7 +8,7 @@
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：364
+口述内容字符数：445
 
 **规范目的**
 
@@ -16,7 +16,7 @@
 
 **任务积压风险**
 
-Executors.newFixedThreadPool(nThreads) 创建固定线程池，Executors.newSingleThreadExecutor() 创建单线程池，两者的队列默认容量均为 Integer.MAX_VALUE。提交持续快于处理时，任务会积压，可能耗尽堆内存。
+Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数和最大线程数均为 nThreads；Executors.newSingleThreadExecutor() 创建单线程池，核心线程数和最大线程数均为 1。两者都使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。线程数有限，但提交持续快于处理时，等待任务会不断积压，可能耗尽堆内存。
 
 **线程增长风险**
 
@@ -160,4 +160,4 @@ try {
 
 ## 7 复核记录
 
-2026-11-12 21:33：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 21:39：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
