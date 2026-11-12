@@ -1,10 +1,10 @@
 # 016_不停机数据迁移_在线历史迁移_线程池_Java里面有哪些内置的线程池
 
+以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，使用 Java 8。示例用于解释机制，不代表生产配置或测试结果。
+
 ## 1 问题
 
 Java 8 里面有哪些常见的内置线程池？
-
-以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，使用 Java 8。示例用于解释机制，不代表生产配置或测试结果。
 
 ## 2 面试口述精炼版本
 
@@ -59,4 +59,4 @@ ThreadPoolExecutor 是可配置的实现类，ScheduledThreadPoolExecutor 支持
 
 ## 6 复核记录
 
-2026-11-12 10:37：已执行 [java-interview-doc-review](C:/Users/Administrator/.codex/skills/java-interview-doc-review/SKILL.md)。
+2026-11-12 10:49：已执行 [java-interview-doc-review](C:/Users/Administrator/.codex/skills/java-interview-doc-review/SKILL.md)。
