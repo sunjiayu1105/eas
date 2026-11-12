@@ -1,4 +1,4 @@
-# 020_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？
+# 016_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，使用 Java 8。本文说明规范意图与 JDK 默认配置的风险；示例不是项目生产配置，未执行代码或性能测试。
 
@@ -26,13 +26,15 @@ Executors 创建的固定池和单线程池，队列默认容量为 Integer.MAX_
 
 普通任务可以显式构造 ThreadPoolExecutor，配置线程数上限、有界队列、线程工厂和拒绝策略，并按负载验证参数。关键是配置合理，单纯换成构造方法并不能保证安全。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/020_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:33>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:33>)
 
 ## 3 详细方案
 
 ### 3.1 先说明规范要求及依据
 
-阿里巴巴官方 p3c 的 `ThreadPoolCreationRule` 源码注释将这条规则标为 Mandatory，要求通过 `ThreadPoolExecutor` 而非 `Executors` 创建线程池，并说明目的是让线程池参数清楚可见、减少系统资源耗尽风险。
+阿里巴巴官方 p3c 的 `ThreadPoolCreationRule` 源码注释中，这条英文规则的中文翻译如下（不是某一版本《Java开发手册》的逐字引文）：
+
+> 【强制】线程池应通过 ThreadPoolExecutor 创建，而不是通过 Executors 创建。这样可以让线程池参数清晰可知，并降低系统资源耗尽的风险。
 
 本次核对的是官方仓库 `master` 分支中的规则源码和正例，不声称已经核对某一指定版本《Java开发手册》的页码。编码规范约束团队写法，Java API 本身仍然允许调用这些工厂方法。
 
@@ -158,4 +160,4 @@ try {
 
 ## 7 复核记录
 
-2026-11-12 18:25：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 18:30：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
