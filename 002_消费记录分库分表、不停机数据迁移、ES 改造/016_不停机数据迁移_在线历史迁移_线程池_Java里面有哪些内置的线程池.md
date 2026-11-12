@@ -8,19 +8,19 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：286
+口述内容字符数：495
 
 **普通任务**
 
-Executors 是创建线程池的工具类。固定线程池最多使用指定数量的线程，任务多了就排队；单线程池只用一个工作线程串行处理；缓存线程池尝试复用等待任务的线程，交接失败再创建线程，核心数为 0、最大数为 Integer.MAX_VALUE。
+`Executors` 是创建线程池的工具类。`newFixedThreadPool(nThreads)` 创建固定线程池，最多使用指定数量的线程；`newSingleThreadExecutor()` 创建单线程池，串行处理任务；`newCachedThreadPool()` 创建缓存线程池，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。这三种底层都使用 `ThreadPoolExecutor`。
 
 **定时任务**
 
-调度线程池支持延迟和周期任务，按指定核心线程数执行；单线程调度池只用一个工作线程，长任务会拖慢后续任务。
+`Executors.newScheduledThreadPool(corePoolSize)` 和 `Executors.newSingleThreadScheduledExecutor()` 都基于 `ScheduledThreadPoolExecutor`，支持延迟和周期任务，分别按指定核心线程数和单个工作线程执行。
 
 **并行计算**
 
-工作窃取池底层是 ForkJoinPool，默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
+`Executors.newWorkStealingPool()` 基于 `ForkJoinPool`，默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。
 
 **使用边界**
 
@@ -139,6 +139,7 @@ Executors 是创建线程池的工具类。固定线程池最多使用指定数�
 - 使用 `java-interview-doc-review-loop` 对 016 进行连续整理与复核。
 - 涉及线程池时说明线程数或取值规则，并区分默认参数、示例值和项目实际配置。
 - 面试口述应能脱离其他文档编号独立理解。
+- 面试口述需明确给出 Java 工厂方法和底层实现类名，并区分二者。
 
 ## 5 待确认或待验证事项
 
@@ -165,4 +166,4 @@ Executors 是创建线程池的工具类。固定线程池最多使用指定数�
 
 ## 7 复核记录
 
-2026-11-12 12:56：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 14:03：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
