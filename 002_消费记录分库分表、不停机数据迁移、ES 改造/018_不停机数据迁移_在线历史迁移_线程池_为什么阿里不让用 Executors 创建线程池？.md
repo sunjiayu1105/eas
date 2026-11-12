@@ -8,15 +8,23 @@
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：869
+口述内容字符数：994
 
 **规范目的**
 
 Executors 是创建线程池的工具类。规范要求显式控制资源边界，但它创建的线程池并非都使用无界队列，应按方法区分风险。
 
+**主要问题：任务积压或线程过多**
+
+这些默认配置的主要风险有两类：一类是队列容量过大或无界，任务持续积压可能耗尽堆内存；另一类是最大线程数过大，高负载下可能创建过多线程，耗尽线程资源。因此，需要分别检查队列容量和线程数量，不能认为所有工厂方法都有同一种问题。
+
 **固定线程池和单线程池：任务积压**
 
-Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数和最大线程数均为 nThreads；Executors.newSingleThreadExecutor() 创建单线程池，两者均为 1。它们使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。提交持续快于处理时，任务可能积压并耗尽堆内存。
+Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数和最大线程数均为 nThreads；
+
+Executors.newSingleThreadExecutor() 创建单线程池，两者均为 1。
+
+它们使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。提交持续快于处理时，任务可能积压并耗尽堆内存。
 
 **缓存线程池：线程增长**
 
@@ -24,7 +32,11 @@ Executors.newCachedThreadPool() 创建缓存线程池，核心线程数为 0，�
 
 **调度线程池：待执行任务积压**
 
-Executors.newScheduledThreadPool(corePoolSize) 创建调度线程池，核心线程数由参数指定；Executors.newSingleThreadScheduledExecutor() 创建单线程调度池，核心线程数为 1。两者底层都使用无界 DelayedWorkQueue，执行并发主要由核心线程数决定，不能套用缓存池不断扩容的结论；待执行任务持续积压仍可能耗尽内存。
+Executors.newScheduledThreadPool(corePoolSize) 创建调度线程池，核心线程数由参数指定；
+
+Executors.newSingleThreadScheduledExecutor() 创建单线程调度池，核心线程数为 1。
+
+两者底层都使用无界 DelayedWorkQueue，执行并发主要由核心线程数决定，不能套用缓存池不断扩容的结论；待执行任务持续积压仍可能耗尽内存。
 
 **工作窃取线程池：另一套执行机制**
 
@@ -34,7 +46,7 @@ Executors.newWorkStealingPool(parallelism) 创建 ForkJoinPool，通过工作窃
 
 普通任务可显式构造 ThreadPoolExecutor，配置线程数上限、有界队列、线程工厂和拒绝策略；调度任务还需限制提交规模。关键是控制资源并验证参数，单纯换成构造方法并不能保证安全。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/018_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:39>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/018_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:51>)
 
 ## 3 详细方案
 
@@ -156,6 +168,8 @@ try {
 
 ## 4 已确认规则
 
+- 口述先总结主要风险，再按线程池类型展开说明。
+
 - 口述中列出创建方法及对应线程池类型，并区分队列积压、线程增长和工作窃取机制。
 
 - 使用 java-interview-doc-review-loop 对本文进行连续整理与复核。
@@ -180,4 +194,4 @@ try {
 
 ## 7 复核记录
 
-2026-11-12 21:45：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 21:51：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
