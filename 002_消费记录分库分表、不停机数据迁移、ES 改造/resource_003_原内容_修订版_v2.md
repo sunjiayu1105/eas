@@ -1,5 +1,18 @@
-# E账通_003_原内容
+# resource_003_原内容_修订版_v2
+
+## 修订历史记录
+
+以下记录以《003_原内容.md》为最初基准，列出截至当前版本的全部修订历史。后续修订版本应保留已有记录，并在表格中继续追加新版本。
+
+| 修订版本 | 对照基准 | 修订内容 |
+| --- | --- | --- |
+| v1：`003_原内容_修订版.md` | `003_原内容.md` | 系统修订消费记录查询方案，补充 MySQL 与 ES 的职责划分、分库分表前后的查询逻辑、查询接口、数据字段、支付方式和资金流转边界等内容。 |
+| v2：`003_原内容_修订版_v2.md` | `003_原内容_修订版.md` | 统一敏感字段采用 ES 原值保存、原值返回，并保留应用日志不得记录相关字段明文的约束；修正 `force_merge` 和索引 `segments` 查询命令；保留“修改前/修改后”对照结构，并将修改后的内容统一设置为红色字体。 |
+
+注：红色字体表示正文中保留的修订内容。
+
 ## 问题描述与优化结果
+
 ### 修改前
 
 <mark>
@@ -11,13 +24,14 @@ force_merge操作，设置合理的translog和refresh_interval机制等方式，
 ### 修改后
 
 <mark>
-“消费业务”模块保留MySQL作为交易权威数据源，由ES承接“消费记录”列表查询中的过滤、排序和分页职责，解决多维组合查询场景的性能瓶颈。涉及单笔详情、资金确认和最终状态时，仍以MySQL为准。
+<span style="color:red">“消费业务”模块保留MySQL作为交易权威数据源，由ES承接“消费记录”列表查询中的过滤、排序和分页职责，解决多维组合查询场景的性能瓶颈。涉及单笔详情、资金确认和最终状态时，仍以MySQL为准。</span>
 
-同时，通过search_after优化深翻页，并在每天凌晨定时对仍在持续写入的活跃索引执行force_merge，配合合理的translog和refresh_interval配置，将该场景的平均接口RT降至原来的30%。
+<span style="color:red">同时，通过search_after优化深翻页，并在每天凌晨定时对仍在持续写入的活跃索引执行force_merge，配合合理的translog和refresh_interval配置，将该场景的平均接口RT降至原来的30%。</span>
 </mark>
 
 ## 相关梳理：
 ### MySQL
+
 ### 修改前
 
 <mark>
@@ -27,8 +41,9 @@ force_merge操作，设置合理的translog和refresh_interval机制等方式，
 ### 修改后
 
 <mark>
-系统用户有多维组合查询的诉求，此前主要通过MySQL联合索引实现。但随着查询条件组合增多，需要维护的索引也越来越多，整体查询效率逐渐下降。
+<span style="color:red">系统用户有多维组合查询的诉求，此前主要通过MySQL联合索引实现。但随着查询条件组合增多，需要维护的索引也越来越多，整体查询效率逐渐下降。</span>
 </mark>
+
 
 ### 修改前
 
@@ -74,10 +89,11 @@ force_merge操作，设置合理的translog和refresh_interval机制等方式，
 ### 修改后
 
 <mark>
-删除上述完整章节，不增加替代内容。
+<span style="color:red">删除上述完整章节，不增加替代内容。</span>
 </mark>
 
 ### ES复杂查询
+
 #### 修改前
 
 <mark>
@@ -87,7 +103,7 @@ ES复杂查询的实现方式和全文检索比较类似， 同样是用到了�
 #### 修改后
 
 <mark>
-ES可以分别根据不同查询字段找到候选文档，再对各个条件对应的结果进行组合过滤，最终返回同时满足条件的文档。
+<span style="color:red">ES可以分别根据不同查询字段找到候选文档，再对各个条件对应的结果进行组合过滤，最终返回同时满足条件的文档。</span>
 </mark>
 
 #### student表
@@ -123,11 +139,13 @@ ES可以分别根据不同查询字段找到候选文档，再对各个条件对
 
 #### 修改后
 
+
 <mark>
-消费明细日增约20万条，5年累计约3.65亿条，按merchantNo分为2个库、每库16张表，共32个分片。跨商户查询不带merchantNo时，ShardingSphere-JDBC需广播查询32个分片，并完成结果归并、排序和分页；商户和客户信息再由应用层批量补充。
+<span style="color:red">消费明细日增约20万条，5年累计约3.65亿条，按merchantNo分为2个库、每库16张表，共32个分片。跨商户查询不带merchantNo时，ShardingSphere-JDBC需广播查询32个分片，并完成结果归并、排序和分页；商户和客户信息再由应用层批量补充。</span>
 </mark>
 
 #### 分库分表前后的查询逻辑
+
 
 ##### 修改前
 
@@ -136,13 +154,14 @@ ES可以分别根据不同查询字段找到候选文档，再对各个条件对
 ##### 修改后
 
 <mark>
-分库分表前，消费记录表作为主表，直接关联账号信息表、商户信息表和客户信息表，一条SQL完成筛选、关联、排序和分页。
+<span style="color:red">分库分表前，消费记录表作为主表，直接关联账号信息表、商户信息表和客户信息表，一条SQL完成筛选、关联、排序和分页。</span>
 
-分库分表后，消费记录表按merchantNo分布在2个库、每库16张表，原来的跨库JOIN不再适合。系统改为多阶段查询：第一阶段只查消费记录；带merchantNo时由ShardingSphere-JDBC路由到目标分片，不带时广播查询32个分片，再由ShardingSphere-JDBC归并、排序和分页。第二阶段从当前页提取去重后的商户ID、客户ID，分别批量查询商户信息表和客户信息表。第三阶段由应用层按ID回填信息，组装最终列表。
+<span style="color:red">分库分表后，消费记录表按merchantNo分布在2个库、每库16张表，原来的跨库JOIN不再适合。系统改为多阶段查询：第一阶段只查消费记录；带merchantNo时由ShardingSphere-JDBC路由到目标分片，不带时广播查询32个分片，再由ShardingSphere-JDBC归并、排序和分页。第二阶段从当前页提取去重后的商户ID、客户ID，分别批量查询商户信息表和客户信息表。第三阶段由应用层按ID回填信息，组装最终列表。</span>
 </mark>
-我们需要思考的一个问题是，如何给在这个场景下进行索引创建？
+<span style="color:red">我们需要思考的一个问题是，如何给在这个场景下进行索引创建？</span>
 
 #### MySQL InnoDB的联合索引
+
 ##### 修改前
 
 <mark>
@@ -154,7 +173,7 @@ ES可以分别根据不同查询字段找到候选文档，再对各个条件对
 ##### 修改后
 
 <mark>
-由于MySQL InnoDB的联合索引很大程度上遵循最左前缀原则，不同查询条件组合往往需要设计不同的联合索引。查询组合越多，联合索引数量和维护成本越高，为所有排列组合建索引成本过大，实际只选择高频组合建立索引。
+<span style="color:red">由于MySQL InnoDB的联合索引很大程度上遵循最左前缀原则，不同查询条件组合往往需要设计不同的联合索引。查询组合越多，联合索引数量和维护成本越高，为所有排列组合建索引成本过大，实际只选择高频组合建立索引。</span>
 </mark>
 
 #### MySQL 8的Skip Scan Range Access Method
@@ -171,6 +190,7 @@ Btw： 之所以在上文中用到了“很大程度上 ”， 是因为MySQL 8�
 
 在ES中， 支持SkipList和Bitset两种方式进行数据结果合并， 前者是采用相互跳跃对比并得出合集的方式 ，后者则通过倒排列表的值计算出各自的Bitset ，并进行AND操作合并。
 
+
 ##### 修改前
 
 <mark>
@@ -180,7 +200,7 @@ Btw： 之所以在上文中用到了“很大程度上 ”， 是因为MySQL 8�
 ##### 修改后
 
 <mark>
-通过这种方式，可以支持5年累计约3.65亿条消费明细的多维组合查询，解决这一业务场景下的索引设计问题。我认为，这就是ES在该场景下比MySQL查询更有优势的主要原因。
+<span style="color:red">通过这种方式，可以支持5年累计约3.65亿条消费明细的多维组合查询，解决这一业务场景下的索引设计问题。我认为，这就是ES在该场景下比MySQL查询更有优势的主要原因。</span>
 </mark>
 
 ## search_after
@@ -209,14 +229,18 @@ Lucene 索引， 包含一部分数据 。当一个文档被添加到索引中�
 forceMerge 是 Elasticsearch 提供的一个 API ，可以将多个段合并成一个更大的段 。这个过程可以通过减少段数来提高性能。
 
 ### 强制合并api：
-| <img src="https://cdn.nlark.com/yuque/0/2026/png/1207652/1780131897419-a8d146fe-f771-4f00-99d8-43cab1e85661.png" width="8" title="" crop="0,0,1,1" id="HnEUh" class="ne-image">                                                                                                                                                 Plain Text   1   curl -XPOST '[http://localhost:9200/javaindex_20160518/_forcemerge?max_num_s](http://localhost:9200/javaindex_20160518/_forcemerge?max_num_segments=1) [egments=1](http://localhost:9200/javaindex_20160518/_forcemerge?max_num_segments=1) '; |
-| --- |
+<pre style="color:red"><code>
+curl -X POST "http://localhost:9200/javaindex_20160518/_forcemerge?max_num_segments=1"
+</code></pre>
 
 
 它会将一个分片强制合并到max_num_segments ，参数指定大小的段数目 ， 这样做的意图是减少段的数量（ 通常减少到一个），来提升搜索性能。
 
 ### 查看mastering索引的段信息
-查看mastering索引的段信息：curl -XGET ζ localhost:9200/mastering/_segments’
+<pre style="color:red"><code>
+curl -X GET "http://localhost:9200/mastering/_segments"
+</code></pre>
+
 
 ### 修改前
 
@@ -228,7 +252,7 @@ optimize API 不应该被用在一个活跃的索引， 即 ：一个正积极�
 ### 修改后
 
 <mark>
-删除该段，不增加替代文字。
+<span style="color:red">删除该段，不增加替代文字。</span>
 </mark>
 
 ## Translog
@@ -390,7 +414,7 @@ POST /internal/consume-records/search
 | `idCardNo` | `String` | 可选，精确匹配 | 查询同一客户的多笔交易 |
 | `electronicAccountNo` | `String` | 可选，精确匹配 | 查询指定电子账户的交易历史 |
 | `businessOrderNo` | `String` | 可选，精确匹配 | 定位商户订单 |
-| `tradeNo` | `String` | 可选，精确匹配 | 关联应用日志、下游调用和对账流水 |
+| `serialNo` | `String` | 可选，精确匹配 | 关联应用日志、下游调用和对账流水 |
 | `tradeTypes` | `String[]` | 可选；`BS0012/BS0013/BS0024` | 筛选消费、撤销和退货记录 |
 | `tradeStatuses` | `String[]` | 可选；`90/99/33` | 筛选成功、失败和未知交易 |
 | `productTypes` | `String[]` | 可选；`0/02/15/17/18` | 按支付方式排查交易 |
@@ -441,14 +465,14 @@ tradeTime DESC, consumeId DESC
 | `consumeId` | `String` | ES 原值，页面可不展示 | 唯一标识交易并作为排序兜底 |
 | `merchantNo` | `String` | ES 原值 | 标识交易商户并支持 MySQL 分片路由 |
 | `merchantName` | `String` | 商户主数据当前名称 | 便于识别交易商户 |
-| `idCardNo` | `String` | ES，固定脱敏 | 标识交易客户并对应身份证号查询条件 |
+| <span style="color:red">`idCardNo`</span> | <span style="color:red">`String`</span> | <span style="color:red">ES 原值</span> | <span style="color:red">标识交易客户并对应身份证号查询条件</span> |
 | `customerName` | `String` | 客户主数据当前最新姓名 | 展示客户当前身份信息 |
-| `mobile` | `String` | 客户主数据，固定脱敏 | 辅助核对客户信息 |
-| `electronicAccountNo` | `String` | ES，固定脱敏 | 展示交易所属电子账户 |
-| `bindingCardNo` | `String` | ES，按实际使用情况返回并固定脱敏 | 展示本笔实际使用的绑定卡 |
-| `transitAccountNo` | `String` | ES，固定脱敏 | 展示本笔交易实际进入的消费过渡户 |
+| <span style="color:red">`mobile`</span> | <span style="color:red">`String`</span> | <span style="color:red">客户主数据</span> | <span style="color:red">辅助核对客户信息</span> |
+| <span style="color:red">`electronicAccountNo`</span> | <span style="color:red">`String`</span> | <span style="color:red">ES 原值</span> | <span style="color:red">展示交易所属电子账户</span> |
+| <span style="color:red">`bindingCardNo`</span> | <span style="color:red">`String`</span> | <span style="color:red">ES，按实际使用情况返回</span> | <span style="color:red">展示本笔实际使用的绑定卡</span> |
+| <span style="color:red">`transitAccountNo`</span> | <span style="color:red">`String`</span> | <span style="color:red">ES 原值</span> | <span style="color:red">展示本笔交易实际进入的消费过渡户</span> |
 | `businessOrderNo` | `String` | ES 原值 | 关联商户订单 |
-| `tradeNo` | `String` | ES 原值 | 关联应用日志、下游调用和对账流水 |
+| `serialNo` | `String` | ES 原值 | 关联应用日志、下游调用和对账流水 |
 | `tradeTime` | `String` | `yyyy-MM-dd HH:mm:ss` | 展示交易时间并作为主排序字段 |
 | `tradeType` | `String` | ES，仅返回 `BS0012/BS0013/BS0024` | 区分消费、撤销和退货 |
 | `tradeStatus` | `String` | ES，仅返回 `90/99/33` | 由前端映射成功、失败和未知 |
@@ -468,13 +492,12 @@ tradeTime DESC, consumeId DESC
 | `consumeId` | `_id`、`keyword`、第二排序字段 | 全局唯一定位交易，并保证相同交易时间下排序稳定 |
 | `merchantNo` | `keyword` 精确过滤 | 标识交易归属商户，并为后续 MySQL 回查提供分片路由 |
 | `idCardNo`、`electronicAccountNo` | `keyword` 精确过滤 | 支持按客户或电子账户查询交易历史 |
-| `businessOrderNo`、`tradeNo` | `keyword` 精确过滤 | 关联商户订单、应用日志、下游调用和对账流水 |
+| `businessOrderNo`、`serialNo` | `keyword` 精确过滤 | 关联商户订单、应用日志、下游调用和对账流水 |
 | `tradeTime` | `date` 范围过滤和主排序 | 限定查询时间并按交易时间倒序展示 |
 | `tradeType`、`tradeStatus`、`productType`、`channelCode` | `keyword` 多值过滤 | 支持按交易类型、状态、支付方式和接入渠道排查问题 |
 | `tradeAmount` | `long` 范围过滤 | 展示交易金额并支持大额交易筛选 |
 | `errorCode` | `keyword` 精确过滤 | 集中查询具有相同错误原因的异常交易 |
 | `bindingCardNo`、`transitAccountNo`、`feeAmount`、`tradeRemark` | 仅保存在 `_source` | 用于列表展示和业务核查，不承担检索条件 |
-| `dataVersion` | 不参与业务查询 | 为后续 ES 同步方案提供幂等和版本控制能力 |
 
 #### 4.5.1 `consumeId`
 
@@ -533,9 +556,9 @@ CREATE TABLE business_entity (
 
 | 字段 | 保存到消费记录 | 写入 ES | 查询条件 | 列表返回 |
 | --- | --- | --- | --- | --- |
-| `electronicAccountNo` | 必存 | 原值保存，建立 `keyword` 索引 | 是 | 固定脱敏 |
-| `bindingCardNo` | 按本笔实际使用情况保存 | 原值保存，不建索引 | 否 | 固定脱敏 |
-| `transitAccountNo` | 必存 | 原值保存，不建索引 | 否 | 固定脱敏 |
+| <span style="color:red">`electronicAccountNo`</span> | <span style="color:red">必存</span> | <span style="color:red">原值保存，建立 `keyword` 索引</span> | <span style="color:red">是</span> | <span style="color:red">原值返回</span> |
+| <span style="color:red">`bindingCardNo`</span> | <span style="color:red">按本笔实际使用情况保存</span> | <span style="color:red">原值保存，不建索引</span> | <span style="color:red">否</span> | <span style="color:red">原值返回</span> |
+| <span style="color:red">`transitAccountNo`</span> | <span style="color:red">必存</span> | <span style="color:red">原值保存，不建索引</span> | <span style="color:red">否</span> | <span style="color:red">原值返回</span> |
 | `collectionAdvanceAccountNo` | 否 | 否 | 否 | 否 |
 | 商户对公结算账户 | 否 | 否 | 否 | 否 |
 
@@ -690,7 +713,7 @@ feeAmount   = 2.00 元
 
 ### 4.7 安全规则与接口边界
 
-身份证号、电子账户号、绑定卡号、消费过渡户账号和手机号按照系统统一规则固定脱敏，应用日志不得记录这些字段的明文。
+<span style="color:red">身份证号、电子账户号、绑定卡号、消费过渡户账号和手机号属于敏感字段，应用日志不得记录这些字段的明文。</span>
 
 ES 内按原值保存 `idCardNo`、`electronicAccountNo`、`bindingCardNo` 和 `transitAccountNo`。其中只有 `idCardNo` 和 `electronicAccountNo` 建立查询索引；本文不展开 ES 字段加密、访问控制和审计方案。
 
@@ -712,7 +735,6 @@ ES 内按原值保存 `idCardNo`、`electronicAccountNo`、`bindingCardNo` 和 `
 
 | 待确认事项 | 当前已知结论 | 影响范围 | 后续动作 |
 | --- | --- | --- | --- |
-| ES 数据同步完整方案 | 当前文档仅保留 `dataVersion` 字段，具体同步和一致性内容暂不展开 | ES 数据完整性、可查询时间范围、同步延迟及正式启用条件 | 后续单独补充增量同步、历史数据处理和一致性方案 |
 | `FM_VACOMSUME_DETAIL` DDL 及物理映射 | 表的业务角色已明确，当前各分片表的物理列、类型、长度、约束和索引尚未核对 | MySQL 开发、ES Mapping、数据同步和查询字段实现 | 核对最终 DDL、实体类及数据访问代码 |
 | `productType` 物理映射和字典来源 | 业务编码 `0/02/15/17/18` 及含义已经确认 | 请求校验、ES Mapping、前端名称展示和历史数据兼容 | 核对实际物理列、现有代码和公共字典 |
 | 商户及客户主数据 | 页面需要当前商户名称、客户姓名和手机号，实际表名及字段尚未确认 | 当前页批量补充逻辑、查询性能和数据准确性 | 核对主数据表、唯一键、查询字段及批量查询接口 |
@@ -745,7 +767,6 @@ ES 内按原值保存 `idCardNo`、`electronicAccountNo`、`bindingCardNo` 和 `
 | `consumeId` 的组成和字符串处理方式 | 本次方案确认结论 | 本次方案已确认 |
 | MySQL 作为权威源，ES 承担列表查询 | 本文第 1、3 节 | 本方案设计 |
 | 时间边界、组合过滤、`search_after` 和不返回精确 `total` | 本文第 4 节 | 本方案设计 |
-| `dataVersion` 作为后续 ES 同步的版本控制字段 | 本文第 4.5 节 | 本方案设计 |
 | 消费金额、手续费、撤销退货及 T+1 清算口径 | 本文第 4.5.2、4.6.3～4.6.7 | 本次方案已确认 |
 | DDL、物理映射、主数据来源和最终接口规范 | 本文第 5 节 | 待确认 |
 
