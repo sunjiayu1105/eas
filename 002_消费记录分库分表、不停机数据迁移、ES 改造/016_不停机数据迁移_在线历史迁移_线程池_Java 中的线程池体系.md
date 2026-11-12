@@ -4,33 +4,31 @@
 
 ## 1 问题
 
-Java 中的线程池体系是怎样的？主要接口、实现类和工具类之间是什么关系？
+Java 中的线程池体系是怎样的？主要接口、实现类和工具类之间是什么关系？这些接口、实现类和工具类与 ThreadPoolExecutor 之间分别是什么关系？
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：391（不含辅助图）
+口述内容字符数：597
 
 **接口定义能力**
 
-Java 线程池属于执行器框架。Executor 定义 execute，用来提交任务；ExecutorService 扩展它，增加 submit、关闭和等待终止等操作；ScheduledExecutorService 再扩展延迟和周期调度能力。
+Java 线程池属于执行器框架。
+Executor 定义 execute，用来提交任务；ExecutorService 扩展它，增加 submit、关闭和等待终止等操作；
+ScheduledExecutorService 再扩展延迟和周期调度能力。
 
-```mermaid
-flowchart BT
-    S["ScheduledExecutorService 接口<br/>新增：延迟执行、周期调度"] -->|继承| ES["ExecutorService 接口<br/>新增：submit、关闭、等待终止"]
-    ES -->|继承| E["Executor 接口<br/>基础能力：execute 提交任务"]
-```
+**ThreadPoolExecutor 如何接入接口体系**
 
-箭头指向父接口。子接口保留父接口的能力，再增加自己的方法；这些接口定义能力，具体操作由实现类完成。
+AbstractExecutorService 实现 ExecutorService，提供 submit 等通用逻辑。ThreadPoolExecutor 继承这个抽象类，因此也是 ExecutorService 和 Executor 的实现，具体负责线程管理、排队和执行任务。
 
-**类提供实现**
+**其他实现类与它的关系**
 
-AbstractExecutorService 提供提交任务等通用实现。ThreadPoolExecutor 和 ForkJoinPool 都继承它，分别支持普通任务执行和工作窃取；ScheduledThreadPoolExecutor 继承 ThreadPoolExecutor，并实现调度接口。
+ScheduledThreadPoolExecutor 是它的子类，并实现 ScheduledExecutorService；普通 ThreadPoolExecutor 不实现这个调度接口。ForkJoinPool 与它有相同的父类 AbstractExecutorService，但两者互不继承，执行机制不同。
 
-**工具负责创建**
+**工具类提供创建入口**
 
-Executors 是工具类，通过静态工厂方法创建执行器。调用方通常用接口类型接收返回对象，具体操作由实际对象的方法实现完成。
+Executors 与 ThreadPoolExecutor 没有继承关系。它通过静态工厂方法创建或包装线程池，例如 newFixedThreadPool 返回的实际对象就是 ThreadPoolExecutor。调用方可以用 ExecutorService 接口类型接收，具体操作由实际对象的方法实现完成。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_Java 中的线程池体系.md:37>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_Java 中的线程池体系.md:35>)
 
 ## 3 详细方案
 
@@ -67,7 +65,9 @@ classDiagram
     Executors ..> ForkJoinPool : 创建
 ```
 
-实线空心箭头表示继承，虚线空心箭头表示实现接口，二者都指向父类型；普通虚线箭头表示创建依赖，指向所创建或包装的实现类。`Executors` 不属于继承链，它是提供静态工厂方法的工具类。
+实线空心箭头表示继承，虚线空心箭头表示实现接口，均指向父类型；普通虚线箭头表示创建依赖，指向具体实现类。`Executors` 不在继承链中，它是提供静态工厂方法的工具类。
+
+以 `ThreadPoolExecutor` 为中心读图：向上找到直接父类 `AbstractExecutorService`，再经由父类找到 `ExecutorService`、`Executor` 接口；向下找到子类 `ScheduledThreadPoolExecutor`；同一父类下还有 `ForkJoinPool`。`ScheduledExecutorService` 由调度子类实现，不能反过来认为父类也实现了它。
 
 本次已核对以下 [OpenJDK 8 并发包源码](https://github.com/openjdk/jdk8u/tree/master/jdk/src/share/classes/java/util/concurrent)中的类型声明：Executor、ExecutorService、ScheduledExecutorService、AbstractExecutorService、ThreadPoolExecutor、ScheduledThreadPoolExecutor、ForkJoinPool。
 
@@ -83,11 +83,15 @@ classDiagram
 
 例如提交一个计算任务，`submit` 返回 `Future`，调用方可以通过它等待结果、检查完成状态或尝试取消。`shutdown` 停止接收新任务，但不等待已有任务全部结束；需要等待终止时使用 `awaitTermination`。
 
+`ThreadPoolExecutor` 通过继承 `AbstractExecutorService` 实现该接口，所以它的对象既能赋给 `ExecutorService` 变量，也能赋给 `Executor` 变量。变量声明为 `Executor` 时，只能直接使用该接口暴露的 `execute`；声明为 `ExecutorService` 时，才能直接调用 `submit`、`shutdown` 等方法。这不会改变对象的实际类型。
+
 **ScheduledExecutorService：增加按时间调度的能力**
 
 它继承 `ExecutorService`，增加 `schedule`、`scheduleAtFixedRate` 和 `scheduleWithFixedDelay`，用于延迟执行、按固定频率执行或按两次执行之间的固定间隔执行。
 
 例如要求一个任务延迟 1 秒执行，就使用 `schedule`；1 秒为示例延迟，到期只表示任务具备执行条件，不保证精确在该时刻开始。
+
+普通 `ThreadPoolExecutor` 不实现 `ScheduledExecutorService`，不能因为调度接口继承了 `ExecutorService`，就认为所有 `ExecutorService` 实现都有调度能力。需要这组接口方法时，可以使用其子类 `ScheduledThreadPoolExecutor`。
 
 接口依据：[Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html)、[ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html)、[ScheduledExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ScheduledExecutorService.html) 的 Java 8 API。
 
@@ -154,9 +158,9 @@ try {
 
 ## 4 已确认规则
 
+- 问题与正文同步说明主要类型之间的关系，并明确各类型与 ThreadPoolExecutor 的继承、接口实现或创建关系。
 - 本文围绕“Java 中的线程池体系”展开，区分接口、抽象类、具体实现类和工具类。
 - 使用关系图和示例解释主要类型之间的关系。
-- 在口述版的“接口定义能力”段落后补充接口继承图，说明父子关系与逐层增加的能力。
 - 本次保留现有文件名与编号，不修改另一篇 016“核心参数”文档。
 
 ## 5 待确认或待验证事项
@@ -167,4 +171,4 @@ try {
 
 ## 6 复核记录
 
-2026-11-12 17:45：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 17:59：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
