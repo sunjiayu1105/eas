@@ -8,7 +8,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：926
+口述内容字符数：973
 
 ### 2.1 普通任务
 
@@ -18,7 +18,7 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 `ExecutorService newSingleThreadExecutor()`：创建单线程池，返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。
 
-`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`，复用或按需创建线程，核心数为 0、最大数为 `Integer.MAX_VALUE`。
+`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`。核心线程数为 0，不保留常驻核心线程；有任务时优先复用空闲线程，没有可用线程就尝试新建，但不超过最大线程数 `Integer.MAX_VALUE`。线程空闲达到 60 秒后可以回收。
 
 ### 2.2 定时任务
 
@@ -180,4 +180,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 22:12：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 22:19：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
