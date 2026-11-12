@@ -42,4 +42,4 @@ Markdown 文档的一级标题必须与文档名称保持一致；比较时忽�
 
 # Java 面试材料调用
 
-处理 Java 面试材料时，通过调用 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 直接修改的，按该技能执行；通过其他方式修改的，必须在修改完成后、最终输出前调用 `java-interview-doc-review` 进行最终优化。
+修改 Java 面试材料后，必须在最终输出前调用 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md) 进行连续优化与复核，直到满足该技能的停止条件。
