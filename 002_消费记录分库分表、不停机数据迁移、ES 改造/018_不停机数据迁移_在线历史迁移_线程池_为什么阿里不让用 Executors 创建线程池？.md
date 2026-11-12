@@ -8,25 +8,33 @@
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：445
+口述内容字符数：869
 
 **规范目的**
 
-这是编码规范，不是 Java 禁止调用。目的是显式配置线程池的资源边界，避免默认参数导致资源耗尽。
+Executors 是创建线程池的工具类。规范要求显式控制资源边界，但它创建的线程池并非都使用无界队列，应按方法区分风险。
 
-**任务积压风险**
+**固定线程池和单线程池：任务积压**
 
-Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数和最大线程数均为 nThreads；Executors.newSingleThreadExecutor() 创建单线程池，核心线程数和最大线程数均为 1。两者都使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。线程数有限，但提交持续快于处理时，等待任务会不断积压，可能耗尽堆内存。
+Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数和最大线程数均为 nThreads；Executors.newSingleThreadExecutor() 创建单线程池，两者均为 1。它们使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。提交持续快于处理时，任务可能积压并耗尽堆内存。
 
-**线程增长风险**
+**缓存线程池：线程增长**
 
-缓存池核心数为 0，最大数为 Integer.MAX_VALUE，不保存排队任务。无法交接给空闲线程时，会尝试创建线程，可能耗尽线程资源。
+Executors.newCachedThreadPool() 创建缓存线程池，核心线程数为 0，最大线程数为 Integer.MAX_VALUE。它使用不存储任务的 SynchronousQueue；无法交接给空闲线程时，会尝试新增线程，可能耗尽线程资源。
+
+**调度线程池：待执行任务积压**
+
+Executors.newScheduledThreadPool(corePoolSize) 创建调度线程池，核心线程数由参数指定；Executors.newSingleThreadScheduledExecutor() 创建单线程调度池，核心线程数为 1。两者底层都使用无界 DelayedWorkQueue，执行并发主要由核心线程数决定，不能套用缓存池不断扩容的结论；待执行任务持续积压仍可能耗尽内存。
+
+**工作窃取线程池：另一套执行机制**
+
+Executors.newWorkStealingPool(parallelism) 创建 ForkJoinPool，通过工作窃取分配任务，参数指定目标并行度；无参方法默认使用可用处理器数量。它不采用普通线程池的单个阻塞队列模型，不能直接套用前面的队列结论。
 
 **改进方式**
 
-普通任务可以显式构造 ThreadPoolExecutor，配置线程数上限、有界队列、线程工厂和拒绝策略，并按负载验证参数。关键是配置合理，单纯换成构造方法并不能保证安全。
+普通任务可显式构造 ThreadPoolExecutor，配置线程数上限、有界队列、线程工厂和拒绝策略；调度任务还需限制提交规模。关键是控制资源并验证参数，单纯换成构造方法并不能保证安全。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/018_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:33>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/018_不停机数据迁移_在线历史迁移_线程池_为什么阿里不让用 Executors 创建线程池？.md:39>)
 
 ## 3 详细方案
 
@@ -83,6 +91,8 @@ Executors.newFixedThreadPool(nThreads) 创建固定线程池，核心线程数�
 
 `Executors.newScheduledThreadPool(corePoolSize)` 创建 `ScheduledThreadPoolExecutor`，核心线程数由调用方指定，底层最大线程数参数为 `Integer.MAX_VALUE`。但它使用无界延迟队列，执行并发主要由核心线程数决定；调大最大线程数没有实际扩容效果，不能因此说它会像缓存池一样不断创建线程。
 
+`Executors.newSingleThreadScheduledExecutor()` 返回单线程调度池的包装对象，底层也是 ScheduledThreadPoolExecutor，核心线程数为 1。两种调度工厂都使用 DelayedWorkQueue，无界队列并不因工厂方法的线程工厂重载而改变。
+
 它仍可能积压大量待执行的调度任务。例如核心数为 1 时，调用方不断提交新的延迟任务，而工作线程处理不过来，队列中的任务及其引用数据可能持续占用内存。这里说的是持续新增任务，不是说单个周期任务每到一个周期就必然新增一份排队副本。
 
 直接改成 `new ScheduledThreadPoolExecutor(1)` 也不会自动得到有界队列，还需要限制调度任务的提交规模，并按业务处理取消任务的保留问题。
@@ -136,7 +146,17 @@ try {
 
 这限制了池内线程数和队列中的任务数，但并不保证任务不会丢失或整个进程不会内存不足；结果还取决于拒绝处理、单个任务占用和其他资源使用。线程池关闭后提交任务也会触发拒绝，不应只处理“队列满”这一种情况。
 
+### 3.6 工作窃取池与工厂方法重载
+
+`Executors.newWorkStealingPool(parallelism)` 返回 ForkJoinPool，使用多个工作队列和工作窃取机制；指定的是目标并行度，不是 ThreadPoolExecutor 的核心线程数和最大线程数。无参方法以 `Runtime.getRuntime().availableProcessors()` 的结果作为目标并行度。它不是通过单个 BlockingQueue 的入队失败来决定扩容，目标并行度也不能简单理解为任何情况下实际线程数的绝对上限。
+
+固定池、单线程池、缓存池和调度池带 ThreadFactory 的重载，改变线程创建方式，不改变上述队列选择。`unconfigurableExecutorService` 等包装方法只包装已有执行器，不创建新的工作线程池，不属于这里的创建方法分类。
+
+来源：[Executors Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html)及 [ForkJoinPool Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html)。本次未联网重新核验链接，也未运行示例。
+
 ## 4 已确认规则
+
+- 口述中列出创建方法及对应线程池类型，并区分队列积压、线程增长和工作窃取机制。
 
 - 使用 java-interview-doc-review-loop 对本文进行连续整理与复核。
 - 核对规范来源及适用范围，区分编码规范与 Java API 限制。
@@ -160,4 +180,4 @@ try {
 
 ## 7 复核记录
 
-2026-11-12 21:39：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 21:45：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
