@@ -8,11 +8,11 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：636
+口述内容字符数：622
 
 **普通任务**
 
-以下都是 `Executors` 的静态工厂方法，省略声明中的 `public static`。调用方通过返回的 `ExecutorService` 接口提交任务和关闭线程池。
+`Executors` 是 Java 提供的工具类，通过静态工厂方法创建不同类型的线程池。下面的方法声明省略 `public static`。
 
 `ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，最多使用指定数量的线程，多出的任务排队等待。
 
@@ -177,4 +177,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 14:44：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 14:56：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
