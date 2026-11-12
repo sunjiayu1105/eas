@@ -1,18 +1,14 @@
-# 016_不停机数据迁移_在线历史迁移_线程池_创建一个线程池有哪些核心参数
+# 017_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，使用 Java 8。
 
 ## 1 问题
 
-创建一个线程池有哪些核心参数？
+创建 ThreadPoolExecutor 有哪些核心参数？
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：478
-
-**以 ThreadPoolExecutor 为例说明核心参数**
-
-创建线程池需要哪些参数，取决于具体的实现类和创建方式。这里以 Java 常用的 `ThreadPoolExecutor` 为例，介绍它完整构造方法中的七个核心参数。
+口述内容字符数：375
 
 **ThreadPoolExecutor 是什么**
 
@@ -34,27 +30,13 @@ workQueue 保存等待执行的任务。达到核心线程数后先排队，队�
 
 threadFactory 负责创建工作线程，可设置名称；handler 决定无法接收任务时怎么处理，例如抛异常。线程池关闭后提交任务也会触发拒绝。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_创建一个线程池有哪些核心参数.md:41>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/017_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数.md:37>)
 
 ## 3 详细方案
 
 ### 3.1 完整构造方法：七个参数各管一件事
 
-**为什么以 ThreadPoolExecutor 为例**
-
-题目没有指定线程池实现、创建方式或参数数量。因此，回答时先明确讨论范围：本篇选择 Java 常用的 `ThreadPoolExecutor`，介绍其完整构造方法中的七个参数。七是该构造方法的参数数量，不是题目预先给定的条件；其他实现或创建方式可能使用不同的参数。
-
-**ThreadPoolExecutor：** 完整构造方法可以显式配置核心线程数、最大线程数、空闲时长、时间单位、工作队列、线程工厂和拒绝策略。
-
-**ForkJoinPool：** 主要配置目标并行度等参数，不使用上述七参数构造方法。
-
-**Executors.newFixedThreadPool(int nThreads)：** 这是工厂方法，调用方只需传入线程数，其他配置由方法内部设置，底层仍使用 `ThreadPoolExecutor`。因此，“调用时只传一个参数”不代表底层线程池只有一个配置项。
-
-相关实现依据：[OpenJDK 8 Executors 源码](https://github.com/openjdk/jdk8u/blob/master/jdk/src/share/classes/java/util/concurrent/Executors.java)与 [ForkJoinPool Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html)。
-
-**七参数构造方法**
-
-下面是构造方法签名；构造方法没有返回类型。
+ThreadPoolExecutor 的完整构造方法包含七个参数，分别控制线程数量、空闲回收、任务排队、线程创建和拒绝处理。下面是构造方法签名；构造方法没有返回类型。
 
 ```java
 public ThreadPoolExecutor(
@@ -175,15 +157,10 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 4 已确认规则
 
-- 口述版先明确以 ThreadPoolExecutor 为例的讨论范围，再介绍其作用；标题直接概括段落内容。
-- 题目未限定参数数量，先明确采用的实现类和创建方式，再介绍对应参数。
-- 面试口述版需说明为什么以 ThreadPoolExecutor 为例，并交代与其他实现、工厂创建方式的必要区别。
-- 明确以 ThreadPoolExecutor 的七参数构造方法回答问题，不将其当成所有线程池通用的参数集合。
+- 本文直接围绕“创建 ThreadPoolExecutor 有哪些核心参数？”展开，不再解释为什么选择它作为例子。
 - 口述版先介绍 ThreadPoolExecutor 的作用，再说明七个核心参数。
-- 016 围绕“创建一个线程池有哪些核心参数”展开。
 - 将用户提供图片中的七参数内容整理进文档，并核对技术表述。
 - 口述版能独立理解；参数示例与生产配置分开说明。
-
 ## 5 待确认或待验证事项
 
 - 示例尚未编译运行，也未做性能测试；不能据此确定项目参数或性能效果。
@@ -201,4 +178,4 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 7 复核记录
 
-2026-11-12 17:04：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 18:38：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
