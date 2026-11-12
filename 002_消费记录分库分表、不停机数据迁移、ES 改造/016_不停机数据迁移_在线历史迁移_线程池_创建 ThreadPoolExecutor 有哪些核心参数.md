@@ -1,4 +1,4 @@
-# 017_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数
+# 016_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，使用 Java 8。
 
@@ -8,11 +8,11 @@
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：375
+口述内容字符数：409
 
 **ThreadPoolExecutor 是什么**
 
-`ThreadPoolExecutor` 是 Java 提供的线程池实现类，实现了 `ExecutorService` 接口，负责管理工作线程、接收和执行任务，以及任务排队和拒绝处理。下面将七个参数分成四组说明。
+`ThreadPoolExecutor` 是 Java 提供的线程池实现类，实现了 `ExecutorService` 接口，负责按需创建工作线程、复用线程执行任务，并根据核心线程数、最大线程数和空闲超时配置控制线程数量与回收，同时处理任务排队和拒绝。下面将七个参数分成四组说明。
 
 **线程数量**
 
@@ -30,7 +30,7 @@ workQueue 保存等待执行的任务。达到核心线程数后先排队，队�
 
 threadFactory 负责创建工作线程，可设置名称；handler 决定无法接收任务时怎么处理，例如抛异常。线程池关闭后提交任务也会触发拒绝。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/017_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数.md:37>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数.md:37>)
 
 ## 3 详细方案
 
@@ -157,6 +157,7 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 4 已确认规则
 
+- 口述中将管理工作线程具体说明为按需创建、复用、数量控制和空闲回收。
 - 本文直接围绕“创建 ThreadPoolExecutor 有哪些核心参数？”展开，不再解释为什么选择它作为例子。
 - 口述版先介绍 ThreadPoolExecutor 的作用，再说明七个核心参数。
 - 将用户提供图片中的七参数内容整理进文档，并核对技术表述。
@@ -178,4 +179,4 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 7 复核记录
 
-2026-11-12 18:38：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 20:01：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
