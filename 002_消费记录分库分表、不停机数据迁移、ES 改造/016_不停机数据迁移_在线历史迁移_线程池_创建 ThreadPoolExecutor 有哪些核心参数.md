@@ -8,7 +8,7 @@
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：409
+口述内容字符数：479
 
 **ThreadPoolExecutor 是什么**
 
@@ -16,7 +16,7 @@
 
 **线程数量**
 
-corePoolSize 是核心线程数，默认按需创建、空闲不回收；maximumPoolSize 是池内允许的最大线程数。
+corePoolSize 是核心线程数，maximumPoolSize 是池内允许的最大线程数。默认在提交任务时按需创建线程：线程数未达到核心线程数时，优先创建线程；达到核心线程数后，优先将任务放入队列；队列满了，再尝试增加线程，但不超过最大线程数；仍无法接收任务时，执行拒绝策略。
 
 **空闲回收**
 
@@ -24,13 +24,13 @@ keepAliveTime 是空闲等待时长，unit 是时间单位，默认用于回收�
 
 **任务排队**
 
-workQueue 保存等待执行的任务。达到核心线程数后先排队，队列满了才尝试扩容到最大线程数。
+workQueue 保存等待执行的任务，队列类型和容量会影响排队与线程扩容。
 
 **创建与拒绝**
 
 threadFactory 负责创建工作线程，可设置名称；handler 决定无法接收任务时怎么处理，例如抛异常。线程池关闭后提交任务也会触发拒绝。
 
-[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数.md:37>)
+[详细说明](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/016_不停机数据迁移_在线历史迁移_线程池_创建 ThreadPoolExecutor 有哪些核心参数.md:35>)
 
 ## 3 详细方案
 
@@ -52,7 +52,7 @@ public ThreadPoolExecutor(
 
 还有参数更少的构造方法，省略线程工厂或拒绝策略时，分别使用默认线程工厂和 `AbortPolicy`。
 
-来源：[OpenJDK 8 ThreadPoolExecutor 源码](https://github.com/openjdk/jdk8u/blob/master/jdk/src/share/classes/java/util/concurrent/ThreadPoolExecutor.java)，本次已核对构造方法及参数检查；行为说明参见 [ThreadPoolExecutor Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)。
+来源：[OpenJDK 8 ThreadPoolExecutor 源码](https://github.com/openjdk/jdk8u/blob/master/jdk/src/share/classes/java/util/concurrent/ThreadPoolExecutor.java)，构造方法及参数检查见该源码；行为说明参见 [ThreadPoolExecutor Java 8 API](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)。
 
 ### 3.2 corePoolSize 与 maximumPoolSize：控制线程数量
 
@@ -157,6 +157,7 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 4 已确认规则
 
+- 口述中说明任务提交时创建线程、排队、扩容与拒绝的先后关系，帮助理解核心线程数和最大线程数。
 - 口述中将管理工作线程具体说明为按需创建、复用、数量控制和空闲回收。
 - 本文直接围绕“创建 ThreadPoolExecutor 有哪些核心参数？”展开，不再解释为什么选择它作为例子。
 - 口述版先介绍 ThreadPoolExecutor 的作用，再说明七个核心参数。
@@ -179,4 +180,4 @@ E、F 可能先于排队的 C、D 执行，所以不能把线程池理解成严�
 
 ## 7 复核记录
 
-2026-11-12 20:01：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 20:18：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
