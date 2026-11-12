@@ -8,29 +8,29 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 2 面试口述精炼版本
 
-口述内容字符数：1257
+口述内容字符数：1466
 
 ### 2.1 普通任务
 
 `Executors` 是 Java 提供的工具类，通过静态工厂方法创建不同类型的线程池。下面的方法声明省略 `public static`。
 
-`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，核心线程数和最大线程数都为 nThreads，线程按需创建，多出的任务排队等待。使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。
+`ExecutorService newFixedThreadPool(int nThreads)`：创建固定线程池，实际对象是 `ThreadPoolExecutor`，核心线程数和最大线程数都为 nThreads，线程按需创建，多出的任务排队等待。使用 LinkedBlockingQueue，默认容量为 Integer.MAX_VALUE，约 21 亿，通常视为无界队列。适合提交规模受控、需要限制同时执行任务数的后台批处理。
 
-`ExecutorService newSingleThreadExecutor()`：创建单线程池，返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。使用 LinkedBlockingQueue，默认容量同样为 Integer.MAX_VALUE，通常视为无界队列。
+`ExecutorService newSingleThreadExecutor()`：创建单线程池，返回包装对象，内部使用 `ThreadPoolExecutor`，核心线程数和最大线程数都为 1，串行处理普通任务。使用 LinkedBlockingQueue，默认容量同样为 Integer.MAX_VALUE，通常视为无界队列。适合需要串行处理的后台工作，例如由同一执行器依次更新内存统计结果。
 
-`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`。核心线程数为 0，不保留常驻核心线程；有任务时优先复用空闲线程，没有可用线程就尝试新建，但不超过最大线程数 `Integer.MAX_VALUE`。使用容量为 0 的 SynchronousQueue，不存储任务，而是直接交接给等待任务的线程。线程空闲达到 60 秒后可以回收。
+`ExecutorService newCachedThreadPool()`：创建缓存线程池，实际对象是 `ThreadPoolExecutor`。核心线程数为 0，不保留常驻核心线程；有任务时优先复用空闲线程，没有可用线程就尝试新建，但不超过最大线程数 `Integer.MAX_VALUE`。使用容量为 0 的 SynchronousQueue，不存储任务，而是直接交接给等待任务的线程。线程空闲达到 60 秒后可以回收。适合提交规模受控、执行时间短且到达间隔不固定的异步任务，不宜直接承接不受控的突发请求。
 
 ### 2.2 定时任务
 
-`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：创建调度线程池，实际对象是 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。使用无界延迟队列 DelayedWorkQueue，没有可配置的固定容量上限。
+`ScheduledExecutorService newScheduledThreadPool(int corePoolSize)`：创建调度线程池，实际对象是 `ScheduledThreadPoolExecutor`，它继承 `ThreadPoolExecutor`，按指定核心线程数执行任务。使用无界延迟队列 DelayedWorkQueue，没有可配置的固定容量上限。适合延迟执行或多个独立周期任务，例如定期刷新不同缓存。
 
-`ScheduledExecutorService newSingleThreadScheduledExecutor()`：创建单线程调度池，返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。同样使用无界 DelayedWorkQueue，没有可配置的固定容量上限。
+`ScheduledExecutorService newSingleThreadScheduledExecutor()`：创建单线程调度池，返回包装对象，内部使用继承自 `ThreadPoolExecutor` 的 `ScheduledThreadPoolExecutor`，用一个工作线程执行调度任务。同样使用无界 DelayedWorkQueue，没有可配置的固定容量上限。适合需要串行执行的轻量定时工作，例如周期采集本地统计信息；长任务会拖延其他到期任务。
 
 可以通过返回对象调用 `schedule` 等方法，执行延迟或周期任务；任务到期后仍需等待可用线程。
 
 ### 2.3 并行计算
 
-`ExecutorService newWorkStealingPool()`：创建工作窃取线程池，实际对象是 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分的计算任务，不保证执行顺序。内部使用多个可扩容的工作队列，工厂方法不提供队列容量参数，不能套用普通线程池的单个阻塞队列容量模型。
+`ExecutorService newWorkStealingPool()`：创建工作窃取线程池，实际对象是 `ForkJoinPool`，与 `ThreadPoolExecutor` 互不继承，也不以它为底层。默认目标并行度为 JVM 可用处理器数，适合可拆分为独立子任务的 CPU 计算，例如分块统计数据后汇总结果，不适合直接执行大量阻塞 I/O，也不保证执行顺序。内部使用多个可扩容的工作队列，工厂方法不提供队列容量参数，不能套用普通线程池的单个阻塞队列容量模型。
 
 ### 2.4 使用边界
 
@@ -146,6 +146,8 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 4 已确认规则
 
+- 面试口述中逐项说明线程池的适用场景，并保留提交规模、任务耗时或串行要求等必要条件。
+
 - 口述中说明各线程池的队列类型及容量；工作窃取池单独说明其多队列机制和容量配置边界。
 
 - 口述中每个工厂方法先用中文说明创建的线程池类型，再说明返回对象和实现关系。
@@ -182,4 +184,4 @@ Java 8 常见的线程池有哪些？它们怎样管理线程和任务，分别�
 
 ## 7 复核记录
 
-2026-11-12 22:22：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-12 22:28：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
