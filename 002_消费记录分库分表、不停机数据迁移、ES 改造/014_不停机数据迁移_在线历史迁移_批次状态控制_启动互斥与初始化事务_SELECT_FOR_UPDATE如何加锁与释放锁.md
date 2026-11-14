@@ -16,11 +16,11 @@ SELECT ... FOR UPDATE 有什么作用，怎样在批次启动时正确使用？
 
 ## 3 面试口述精炼版本
 
-口述内容字符数：506
+口述内容字符数：525
 
 **先锁住记录，再检查和更新**
 
-SELECT ... FOR UPDATE 是锁定读取。在 InnoDB 中，按主键查到已有批次记录后，会对记录加排他锁，也就是阻止其他事务同时修改或取得冲突的锁。应用代码判断查出的状态是否允许启动，再更新状态；查询、判断和更新必须处于同一事务、同一连接，这条记录上的锁随事务提交或完整回滚释放；查询完就结束事务，保护不了后面的更新。
+SELECT ... FOR UPDATE 是锁定读取。在 InnoDB 中，按主键查到已有批次记录后，会对记录加排他锁，也就是阻止其他事务同时修改或取得冲突的锁。在同一事务、同一连接中，先通过 SELECT ... FOR UPDATE 查询并锁住批次记录，再由应用代码判断批次状态是否允许启动，允许时才更新状态；锁随事务提交或完整回滚释放。查询完就结束事务，保护不了后面的更新。
 
 详见：[事务内的锁定读取（第 41 行）](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/014_不停机数据迁移_在线历史迁移_批次状态控制_启动互斥与初始化事务_SELECT_FOR_UPDATE如何加锁与释放锁.md:41>)。
 
@@ -212,4 +212,4 @@ Dispatcher 是业务接口，需接入主文档约定的调度器，复查停止
 
 ## 7 复核记录
 
-2026-11-14 18:23：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 18:27：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
