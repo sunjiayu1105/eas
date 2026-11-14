@@ -16,11 +16,11 @@ SELECT ... FOR UPDATE 有什么作用，怎样在批次启动时正确使用？
 
 ## 3 面试口述精炼版本
 
-口述内容字符数：481
+口述内容字符数：506
 
 **先锁住记录，再检查和更新**
 
-SELECT ... FOR UPDATE 是锁定读取。在 InnoDB 中，按主键查到已有批次记录后，会对记录加排他锁，也就是阻止其他事务同时修改或取得冲突的锁。检查状态和更新必须使用同一事务、同一连接，这条记录上的锁随事务提交或完整回滚释放；查询完就结束事务，保护不了后面的更新。
+SELECT ... FOR UPDATE 是锁定读取。在 InnoDB 中，按主键查到已有批次记录后，会对记录加排他锁，也就是阻止其他事务同时修改或取得冲突的锁。应用代码判断查出的状态是否允许启动，再更新状态；查询、判断和更新必须处于同一事务、同一连接，这条记录上的锁随事务提交或完整回滚释放；查询完就结束事务，保护不了后面的更新。
 
 详见：[事务内的锁定读取（第 41 行）](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/014_不停机数据迁移_在线历史迁移_批次状态控制_启动互斥与初始化事务_SELECT_FOR_UPDATE如何加锁与释放锁.md:41>)。
 
@@ -122,12 +122,84 @@ COMMIT;
 
 完整初始化、提交未知与恢复流程见 [启动互斥与初始化事务](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/013_不停机数据迁移_在线历史迁移_批次状态控制_启动互斥与初始化事务.md>)。事务异常与释放边界见 4.3；完整初始化与人工恢复仍以主文档及其关联专题为准。
 
+### 4.5 核心实现代码：事务内检查并更新状态
+
+以下按 Java 8、Spring Boot 2.7.18 展示已暂停批次的恢复入口，不处理首次初始化。前提是运维已确认上次执行安全结束、未知结果和失败任务已修复、原任务清单完整；PAUSED 不能代替这些检查。完整启动实现见直接主文档。
+
+构造器让 JDBC 和事务管理器使用同一 DataSource；Spring 将事务连接绑定到当前线程，JdbcTemplate 在回调内复用该连接。以下是教学实现，不表示项目已经采用这套接线。
+
+```java
+import java.util.List;
+import javax.sql.DataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+public final class PausedBatchStarter {
+    private final JdbcTemplate jdbc;
+    private final TransactionTemplate tx;
+    private final Dispatcher dispatcher;
+
+    public PausedBatchStarter(DataSource dataSource, Dispatcher dispatcher) {
+        this.jdbc = new JdbcTemplate(dataSource);
+        this.tx = new TransactionTemplate(
+                new DataSourceTransactionManager(dataSource));
+        this.dispatcher = java.util.Objects.requireNonNull(dispatcher);
+    }
+
+    public void resume(long batchId) {
+        // 禁止加入外层事务，否则 execute 返回时可能尚未真正提交。
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("恢复入口不能处于外层事务中");
+        }
+        tx.execute(transaction -> {
+            // 第一步：查询并加锁，不是普通快照查询。
+            List<String> states = jdbc.query(
+                    "SELECT status FROM migration_batch WHERE id = ? FOR UPDATE",
+                    (rs, rowNum) -> rs.getString(1), batchId);
+            if (states.size() != 1) {
+                throw new IllegalStateException("批次控制记录必须预先存在");
+            }
+            // 第二步：应用代码检查状态，此时事务尚未结束，锁仍持有。
+            if (!"PAUSED".equals(states.get(0))) {
+                throw new IllegalStateException("仅允许恢复已安全暂停的批次");
+            }
+            // 第三步：沿用原任务清单和进度，只改变批次状态。
+            int changed = jdbc.update(
+                    "UPDATE migration_batch SET status = 'RUNNING' "
+                            + "WHERE id = ? AND status = 'PAUSED'", batchId);
+            if (changed != 1) {
+                throw new IllegalStateException("批次状态更新失败");
+            }
+            return null;
+        }); // 回调正常完成后提交；运行时异常向外传播并触发回滚。
+
+        // execute 正常返回才确认提交；提交异常时不会执行本行。
+        dispatcher.dispatchCommittedBatch(batchId);
+    }
+
+    public interface Dispatcher {
+        void dispatchCommittedBatch(long batchId);
+    }
+}
+```
+
+**检查状态发生在哪里**
+
+`jdbc.query` 查询并锁住记录；`if (!"PAUSED".equals(...))` 才是应用侧状态检查；`jdbc.update` 执行状态更新。三个步骤在同一线程、同一事务连接中执行。状态不允许时抛出异常，回滚并释放锁；不能捕获后继续调度，也不能把查询或更新移到异步线程。
+
+**提交后交接的边界**
+
+Dispatcher 是业务接口，需接入主文档约定的调度器，复查停止信号并处理提交失败及安全收尾，不是空实现。提交响应丢失时不自动重试，应告警并核实实际结果；状态已提交但调度前宕机时，按人工恢复流程处理，不能直接改回已暂停。本示例没有实现首次初始化、告警及调度器，也未验证实际 DataSource 接线、事务超时和数据库并发行为。
+
 ## 5 已确认规则
 
 - 作为启动互斥与初始化事务的直接分文档，专门解释 SELECT ... FOR UPDATE。
 - 沿用已有方案：使用数据库行锁与批次状态，不增加 Redis 锁。
 - 明确行锁、条件更新与乐观并发控制的区别，保留现有 SQL 和行锁方案。
 - 只锁定预先存在的批次记录，初始化与状态更新在同一事务中，确认提交后执行迁移。
+- 分文档补充聚焦 SELECT ... FOR UPDATE 的 Java 实现骨架，不重复主文档的完整初始化代码。
 
 ## 6 待确认或待验证事项
 
@@ -140,4 +212,4 @@ COMMIT;
 
 ## 7 复核记录
 
-2026-11-14 16:36：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 18:23：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
