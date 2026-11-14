@@ -1,8 +1,8 @@
-# 004_SQL 优化_如何优化JOIN查询
+# 010_SQL 优化_如何优化JOIN查询
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，本文使用 MySQL 8.0.33 的 InnoDB 语义。内容为方法说明，SQL 和数值为教学示例；未执行数据库测试，不代表生产实现或性能收益。
 
-直接主文档：[001_SQL 优化](<D:/000/sources/eas/000_MySQL/001_SQL 优化.md>)。
+直接主文档：[001_SQL 优化](<D:/000/sources/eas/000_MySQL/007_SQL 优化.md>)。
 
 ## 1 问题
 
@@ -23,7 +23,7 @@ JOIN 查询慢时，应该从哪些方面优化？
 
 “小结果集驱动大表”只是常见思路，不能直接按表总行数或 SQL 书写顺序下结论。需要结合过滤后的结果量和实际计划验证，改写时还要保证连接结果不变。
 
-详见：[详细方案](<D:/000/sources/eas/000_MySQL/004_SQL 优化_如何优化JOIN查询.md:28>)。
+详见：[详细方案](<D:/000/sources/eas/000_MySQL/010_SQL 优化_如何优化JOIN查询.md:28>)。
 
 ## 4 详细方案
 
@@ -56,4 +56,4 @@ JOIN 查询慢时，应该从哪些方面优化？
 
 ## 8 复核记录
 
-2026-11-14 17:53：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 22:20：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。

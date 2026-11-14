@@ -1,8 +1,8 @@
-# 005_SQL 优化_IN与EXISTS如何选择和改写
+# 011_SQL 优化_IN与EXISTS如何选择和改写
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，本文使用 MySQL 8.0.33 的 InnoDB 语义。内容为方法说明，SQL 和数值为教学示例；未执行数据库测试，不代表生产实现或性能收益。
 
-直接主文档：[001_SQL 优化](<D:/000/sources/eas/000_MySQL/001_SQL 优化.md>)。
+直接主文档：[001_SQL 优化](<D:/000/sources/eas/000_MySQL/007_SQL 优化.md>)。
 
 ## 1 问题
 
@@ -23,7 +23,7 @@ IN 和 EXISTS 如何选择，NOT IN 改成 NOT EXISTS 时要注意什么？
 
 改写反向条件时尤其要检查 NULL：子查询包含 NULL 时，NOT IN 可能得到 UNKNOWN 而过滤记录；即使子查询不含 NULL，外层字段允许 NULL 时，它和普通等号关联的 NOT EXISTS 也可能不同。先明确内外字段可空性和业务是否保留 NULL，再做等价改写。
 
-详见：[详细方案](<D:/000/sources/eas/000_MySQL/005_SQL 优化_IN与EXISTS如何选择和改写.md:28>)。
+详见：[详细方案](<D:/000/sources/eas/000_MySQL/011_SQL 优化_IN与EXISTS如何选择和改写.md:28>)。
 
 ## 4 详细方案
 
@@ -65,4 +65,4 @@ NOT EXISTS 不是对 NOT IN 的无条件等价替换，也不保证总是更快�
 
 ## 8 复核记录
 
-2026-11-14 17:53：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 22:20：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。

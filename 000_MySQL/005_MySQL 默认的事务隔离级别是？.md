@@ -1,4 +1,4 @@
-# 009_MySQL 默认的事务隔离级别是？
+# 005_MySQL 默认的事务隔离级别是？
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，本文讨论 MySQL 8.0.33 的 InnoDB 引擎。已核对 MySQL 8.0 官方资料；SQL 为教学示例，未执行数据库并发实验，也未读取生产配置。
 
@@ -30,7 +30,7 @@ SELECT ... FOR UPDATE、UPDATE 和 DELETE 不沿用这个旧快照，而是按�
 
 按 SQL 标准，RR 仍允许幻读；InnoDB 的快照读让其他事务后来提交的新增记录不可见，范围锁定读取则通过记录锁和间隙锁限制向受保护范围插入。两种机制的前提不同，不能说 RR 下任意两次查询结果都相同。
 
-详见：[默认值与实际配置](<D:/000/sources/eas/000_MySQL/009_MySQL 默认的事务隔离级别是？.md:37>)、[快照何时建立，为什么可以重复读取](<D:/000/sources/eas/000_MySQL/009_MySQL 默认的事务隔离级别是？.md:54>)、[UPDATE 为什么不会按旧年龄更新](<D:/000/sources/eas/000_MySQL/009_MySQL 默认的事务隔离级别是？.md:69>)、[幻读保护为什么有边界](<D:/000/sources/eas/000_MySQL/009_MySQL 默认的事务隔离级别是？.md:112>)。
+详见：[默认值与实际配置](<D:/000/sources/eas/000_MySQL/005_MySQL 默认的事务隔离级别是？.md:37>)、[快照何时建立，为什么可以重复读取](<D:/000/sources/eas/000_MySQL/005_MySQL 默认的事务隔离级别是？.md:54>)、[UPDATE 为什么不会按旧年龄更新](<D:/000/sources/eas/000_MySQL/005_MySQL 默认的事务隔离级别是？.md:69>)、[幻读保护为什么有边界](<D:/000/sources/eas/000_MySQL/005_MySQL 默认的事务隔离级别是？.md:112>)。
 
 ## 4 详细方案
 
@@ -127,7 +127,7 @@ RR 下，范围锁定读取通常使用间隙锁或 Next-Key Lock（临键锁，
 
 A 先普通查询，B 插入并提交，A 再执行 FOR UPDATE，可能看到旧快照中没有的记录，因为第一次普通查询没有建立范围锁，两次采用的读取规则也不同。再加上事务自身修改可见，不能把“MVCC 与临键锁”解释为所有查询结果永远一致。
 
-依据：[Transaction Isolation Levels](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-transaction-isolation-levels.html) 说明唯一索引命中与范围扫描的加锁差异，并提示 RR 下混合锁定与非锁定操作涉及不同数据视图。锁的释放和异常边界另见 [SELECT FOR UPDATE 如何加锁与释放锁](D:/000/sources/eas/000_MySQL/010_SELECT_FOR_UPDATE如何加锁与释放锁.md)。
+依据：[Transaction Isolation Levels](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-transaction-isolation-levels.html) 说明唯一索引命中与范围扫描的加锁差异，并提示 RR 下混合锁定与非锁定操作涉及不同数据视图。锁的释放和异常边界另见 [SELECT FOR UPDATE 如何加锁与释放锁](<D:/000/sources/eas/000_MySQL/006_MySQL 中的 for update 锁的是什么？.md>)。
 
 ## 5 已确认规则
 
@@ -149,4 +149,4 @@ A 先普通查询，B 插入并提交，A 再执行 FOR UPDATE，可能看到旧
 
 ## 8 复核记录
 
-2026-11-14 17:53：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 22:20：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
