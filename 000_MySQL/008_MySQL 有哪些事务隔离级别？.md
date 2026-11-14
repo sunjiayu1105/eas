@@ -1,4 +1,4 @@
-# 001_MySQL 有哪些事务隔离级别？
+# 008_MySQL 有哪些事务隔离级别？
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，本文讨论 MySQL 8.0.33 的 InnoDB 引擎。已核对 MySQL 8.0 官方资料；示例用于解释机制，未执行数据库并发实验，未读取生产隔离级别配置。
 
@@ -21,19 +21,19 @@ MySQL 有哪些事务隔离级别，各自解决什么问题，InnoDB 的实现�
 
 脏读是读到其他事务未提交的数据；不可重复读是同一事务重复读取同一记录，受到其他事务已提交修改的影响；幻读是重复执行同一条件查询，匹配的记录集合发生变化，不只看行数。
 
-详见：[脏读、不可重复读和幻读（第 40 行）](<D:/000/sources/eas/000_MySQL/001_MySQL 有哪些事务隔离级别？.md:40>)。
+详见：[脏读、不可重复读和幻读（第 40 行）](<D:/000/sources/eas/000_MySQL/008_MySQL 有哪些事务隔离级别？.md:40>)。
 
 **四种级别逐步加强隔离**
 
 MySQL InnoDB 支持读未提交、读已提交、可重复读和串行化。按 SQL 标准对这三类问题的要求，读未提交都可能出现；读已提交避免脏读；可重复读再避免不可重复读，但标准仍允许幻读；串行化要求结果等价于事务按某种顺序串行执行，避免这三类问题，并不要求所有事务实际排队。
 
-详见：[四种隔离级别的保证（第 56 行）](<D:/000/sources/eas/000_MySQL/001_MySQL 有哪些事务隔离级别？.md:56>)。
+详见：[四种隔离级别的保证（第 56 行）](<D:/000/sources/eas/000_MySQL/008_MySQL 有哪些事务隔离级别？.md:56>)。
 
 **再补充 InnoDB 的实现边界**
 
 InnoDB 默认可重复读。读已提交每次普通一致性读建立新快照，可重复读通常复用第一次一致性读的快照，通过 MVCC，也就是多版本并发控制，决定哪些版本可见；事务自身写入仍然可见。可重复读下，范围锁定读取通过记录锁和间隙锁保护范围；它读取当前记录状态，不沿用普通查询的旧快照。串行化在显式事务中会把普通 SELECT 转为共享锁定读，锁范围依赖索引和条件，可能增加等待与死锁，性能要结合负载判断。
 
-详见：[InnoDB 如何实现 RC、RR，以及如何理解幻读（第 80 行）](<D:/000/sources/eas/000_MySQL/001_MySQL 有哪些事务隔离级别？.md:80>)、[串行化怎样加锁，代价是什么（第 104 行）](<D:/000/sources/eas/000_MySQL/001_MySQL 有哪些事务隔离级别？.md:104>)。
+详见：[InnoDB 如何实现 RC、RR，以及如何理解幻读（第 80 行）](<D:/000/sources/eas/000_MySQL/008_MySQL 有哪些事务隔离级别？.md:80>)、[串行化怎样加锁，代价是什么（第 104 行）](<D:/000/sources/eas/000_MySQL/008_MySQL 有哪些事务隔离级别？.md:104>)。
 
 ## 4 详细方案
 
@@ -75,7 +75,7 @@ A 查询所有 `age >= 18` 的用户；B 插入一个满足条件的用户并提
 
 这三类读取现象不是业务正确性的全部。隔离级别不能代替完整的事务边界、约束和更新条件；例如两个请求都先在事务外读余额，再分别写回自己计算的值，不能仅凭数据库默认 RR 就认定不会覆盖更新。
 
-来源：[MySQL 8.0 Transaction Isolation Levels](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-transaction-isolation-levels.html) 列出四种级别、InnoDB 默认值及各级别的读取和加锁机制。本次已核对该页面；不据此认定项目生产配置已确认。
+来源：[MySQL 8.0 Transaction Isolation Levels](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-transaction-isolation-levels.html) 列出四种级别、InnoDB 默认值及各级别的读取和加锁机制。此前整理已核对该页面；不据此认定项目生产配置已确认。
 
 ### 4.3 InnoDB 如何实现 RC、RR，以及如何理解幻读
 
@@ -99,7 +99,7 @@ A 先普通查询建立快照，此时并没有因此锁住对应间隙；B 随�
 
 此外，当前事务自己的写入仍然可见。官方文档说明，事务更新先前快照中不可见的记录后，后续一致性读可能看见自己更新后的版本。因此“RR 下任何两次查询结果都一样”和“MVCC 加临键锁就能无条件消除所有业务中的结果变化”都不准确。
 
-来源：[Consistent Nonlocking Reads](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-consistent-read.html) 说明 RC/RR 快照时机、自身写入可见及一致性读与写操作的边界；[Phantom Rows](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-next-key-locking.html) 说明临键锁对范围插入的保护。本次已核对相关官方说明，未实测上述场景。锁的具体使用与释放示例见 [SELECT FOR UPDATE 如何加锁与释放锁](<D:/000/sources/eas/000_MySQL/003_SELECT_FOR_UPDATE如何加锁与释放锁.md>)。
+来源：[Consistent Nonlocking Reads](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-consistent-read.html) 说明 RC/RR 快照时机、自身写入可见及一致性读与写操作的边界；[Phantom Rows](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-next-key-locking.html) 说明临键锁对范围插入的保护。此前整理已核对相关官方说明，未实测上述场景。锁的具体使用与释放示例见 [SELECT FOR UPDATE 如何加锁与释放锁](<D:/000/sources/eas/000_MySQL/010_SELECT_FOR_UPDATE如何加锁与释放锁.md>)。
 
 ### 4.4 串行化怎样加锁，代价是什么
 
@@ -109,7 +109,7 @@ A 先普通查询建立快照，此时并没有因此锁住对应间隙；B 随�
 
 更严格的保护可能增加冲突等待、锁持有时间和死锁概率。例如两个事务都共享锁定同一记录，随后都尝试更新，可能因锁升级发生死锁，需要应用处理失败事务。实际吞吐量和延迟取决于读写比例、访问范围、事务长短和索引，不能直接断言串行化在任何负载下都是性能最差。
 
-来源：Transaction Isolation Levels 的 SERIALIZABLE 小节明确区分自动提交下的单条只读查询与显式事务内的普通查询。本次已核对该条件；实际锁竞争和性能未经测试。
+来源：Transaction Isolation Levels 的 SERIALIZABLE 小节明确区分自动提交下的单条只读查询与显式事务内的普通查询。此前整理已核对该条件；实际锁竞争和性能未经测试。
 
 ### 4.5 双会话示例：比较 RC 与 RR 的普通读取
 
@@ -164,4 +164,4 @@ RR 下，A 第二次普通查询预期仍为 100；另起一轮 RC 对照前，�
 
 ## 8 复核记录
 
-2026-11-14 16:50：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 17:53：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。

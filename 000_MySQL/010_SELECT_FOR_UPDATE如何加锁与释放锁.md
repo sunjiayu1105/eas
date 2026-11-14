@@ -1,4 +1,4 @@
-# 003_SELECT_FOR_UPDATE如何加锁与释放锁
+# 010_SELECT_FOR_UPDATE如何加锁与释放锁
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准，本文讨论 MySQL 8.0.33 的 InnoDB 引擎。SQL 是教学示例，未执行数据库并发实验；实际索引、隔离级别与超时配置需结合运行环境核实。
 
@@ -20,19 +20,19 @@ SELECT ... FOR UPDATE 如何加锁与释放锁，使用时需要注意什么？
 
 SELECT ... FOR UPDATE 是锁定读取。在 InnoDB 中，它读取当前数据并申请排他锁，防止其他事务同时修改被保护的记录。按主键等值查到已有记录时，主要对这条索引记录加锁；如果是范围查询或非唯一索引查询，锁范围还取决于隔离级别和实际扫描的索引，可能连记录之间的间隙也一起保护。
 
-详见：[如何加锁，锁住哪些数据（第 39 行）](<D:/000/sources/eas/000_MySQL/003_SELECT_FOR_UPDATE如何加锁与释放锁.md:39>)。
+详见：[如何加锁，锁住哪些数据（第 39 行）](<D:/000/sources/eas/000_MySQL/010_SELECT_FOR_UPDATE如何加锁与释放锁.md:39>)。
 
 **冲突操作等待，普通快照查询通常不等待**
 
 其他事务更新、删除同一记录，或申请与它冲突的锁，默认需要等待。在读已提交、可重复读隔离级别下，普通非锁定查询通常通过 MVCC，也就是多版本并发控制，读取可见版本，不必等待这把记录锁释放。
 
-详见：[其他事务会受到什么影响（第 56 行）](<D:/000/sources/eas/000_MySQL/003_SELECT_FOR_UPDATE如何加锁与释放锁.md:56>)。
+详见：[其他事务会受到什么影响（第 56 行）](<D:/000/sources/eas/000_MySQL/010_SELECT_FOR_UPDATE如何加锁与释放锁.md:56>)。
 
 **提交或回滚后释放，不是查询返回就释放**
 
 查询、检查和更新必须放在同一事务、同一连接里，锁通常随事务提交或完整回滚释放。自动提交下单独执行一条锁定查询，不能保护后面的更新。连接异常时要等数据库识别断连并完成事务处理，不能认为应用超时就已经释放锁；锁等待超时也不等于整个事务已经回滚。
 
-详见：[什么时候释放锁，异常时如何处理（第 66 行）](<D:/000/sources/eas/000_MySQL/003_SELECT_FOR_UPDATE如何加锁与释放锁.md:66>)。
+详见：[什么时候释放锁，异常时如何处理（第 66 行）](<D:/000/sources/eas/000_MySQL/010_SELECT_FOR_UPDATE如何加锁与释放锁.md:66>)。
 
 ## 4 详细方案
 
@@ -78,7 +78,7 @@ InnoDB 还会取得表级意向排他锁，表示事务准备对表内记录加�
 
 上述说明针对本次业务要保护的锁，不能推广成“所有扫描过的记录锁只能在提交时释放”；读已提交下，不匹配记录的锁可能在判断条件后提前释放。
 
-依据：[InnoDB Error Handling](https://dev.mysql.com/doc/refman/8.0/en/innodb-error-handling.html) 和 InnoDB 事务、锁定读取规则；连接异常及未知提交的实际恢复行为尚待验证。
+依据：[InnoDB Error Handling](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-error-handling.html)。本次联网核对：死锁回滚整个事务；锁等待超时默认回滚当前语句，整事务回滚受配置影响。连接异常及未知提交的实际恢复行为尚待验证。
 
 ### 4.4 核心 SQL：先锁住余额，再扣减
 
@@ -119,8 +119,8 @@ COMMIT;
 - 示例 SQL 在 MySQL 8.0.33 下的双会话等待、读取与锁释放行为。
 - 主键命中、非唯一索引、范围查询和空结果在不同隔离级别下的实际锁范围。
 - 实际连接、事务管理及锁等待超时、死锁、断连和提交响应丢失的处理。
-- 官方来源本次未联网核验；运行环境的索引、超时与事务配置尚未读取。
+- 本次已联网核对错误处理文档，其他锁定读取来源未重新联网核验；运行环境的索引、超时与事务配置尚未读取。
 
 ## 7 复核记录
 
-2026-11-14 16:30：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-14 17:53：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
