@@ -89,4 +89,3 @@ Consumer 的拉取位点用于确定下一次从队列的哪个位置请求消�
 - 原文只列出组件名称，没有说明路由、存储、消费分配和进度之间的关系，无法独立回答“架构如何协作”。本文补充了最小完整链路，但没有把未核验的部署参数写成事实。
 
 复核记录：2026-11-14 16:52，已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
-
