@@ -1,4 +1,4 @@
-# 008
+# 008_Redis 锁和数据库行锁分别适用于什么场景，应该如何选择？
 
 以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。数据库行锁按 MySQL 8.0.33 InnoDB 说明；Redis 仅讨论通用锁机制，不指定版本、客户端或配置。以下场景用于解释选型，不代表已经实现或经过生产验证。
 
@@ -32,7 +32,7 @@ Redis 锁和数据库行锁分别适用于什么场景，应该如何选择？
 
 如果一个原子操作就能完成检查和修改，应优先考虑它。例如 Redis 原子命令或 Lua 脚本，以及数据库中的单条条件 UPDATE。数据库 UPDATE 仍可能自动取得行锁，只是不需要应用先执行 SELECT FOR UPDATE。
 
-详见：[详细方案](<D:/000/sources/eas/000_多线程/008.md:37>)。
+详见：[详细方案](<D:/000/sources/eas/000_多线程/008_Redis 锁和数据库行锁分别适用于什么场景，应该如何选择？.md:37>)。
 
 ## 4 详细方案
 
@@ -89,4 +89,4 @@ Redis 计数递增可以使用原子命令；Redis 内的条件检查与修改�
 
 ## 7 复核记录
 
-2026-11-15 11:13：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
+2026-11-15 11:19：已执行 [$java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。
