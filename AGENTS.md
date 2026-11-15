@@ -45,11 +45,11 @@ Markdown 文档的一级标题必须与文档名称保持一致；比较时忽�
 | `rocketmq-spring-boot-starter` | 2.3.0 | 2024-02-19 | [RocketMQ Spring 2.3.0 Release](https://github.com/apache/rocketmq-spring/releases/tag/rocketmq-spring-all-2.3.0)，所属项目的 UTC 发布日期 |
 | `org.apache.rocketmq:rocketmq-client` | 5.2.0 | 2024-02-11 | [RocketMQ 5.2.0 Release](https://github.com/apache/rocketmq/releases/tag/rocketmq-all-5.2.0)，所属项目的 UTC 发布日期，不等同于 Maven 制品上传时间 |
 | Alibaba Canal Server | 1.1.7 | 2023-10-09 | [官方 GitHub Release](https://github.com/alibaba/canal/releases/tag/canal-1.1.7)，UTC 发布日期 |
-| `org.redisson:redisson` | 3.27.2 | 2024-03-12 | [官方 GitHub Release](https://github.com/redisson/redisson/releases/tag/redisson-3.27.2)，UTC 发布日期 |
+| `org.redisson:redisson-spring-boot-starter` | 3.17.7 | 2022-10-03 | [官方 GitHub Release](https://github.com/redisson/redisson/releases/tag/redisson-3.17.7)，UTC 发布日期 |
 
 - Alibaba Canal Server 单机部署，不使用 ZooKeeper 高可用。
-- Redisson 使用核心包实现批次启动锁，不使用 Redisson Starter。当前只需要 `RedissonClient` 和 `RLock`，不需要 Starter 提供的 Spring Data Redis 接入和自动配置。3.27.2 的 Starter 默认引入 `redisson-spring-data-32`，与当前 Spring Boot 2.7.18 的 Spring Data Redis 2.7 系列不匹配，使用 Starter 还需替换适配模块；当前直接配置核心客户端更直接。依据：[Starter 3.27.2 官方 POM](https://repo.maven.apache.org/maven2/org/redisson/redisson-spring-boot-starter/3.27.2/redisson-spring-boot-starter-3.27.2.pom)。
-- Redisson 版本选型不代表实际接入已经验证。使用核心包仍需核对 Netty、Jackson 等最终解析依赖；与现有依赖的兼容性、项目编译和 Redis 联调尚未验证。
+- Redisson 使用 `redisson-spring-boot-starter` 3.17.7 实现批次启动锁。该版本支持 Java 8，Starter 的 Spring Boot 基线为 2.7.2，默认引入 `redisson-spring-data-27`，与当前 Spring Boot 2.7.18 所属的 Spring Data Redis 2.7 系列对应，无需替换适配模块。通过 `spring.redis.*` 配置连接并使用自动配置的 `RedissonClient`，无需另行声明 Redisson 核心包依赖或手工创建客户端。选择依据：[Starter 3.17.7 官方 POM](https://repo.maven.apache.org/maven2/org/redisson/redisson-spring-boot-starter/3.17.7/redisson-spring-boot-starter-3.17.7.pom)、[父 POM](https://repo.maven.apache.org/maven2/org/redisson/redisson-parent/3.17.7/redisson-parent-3.17.7.pom)。
+- Redisson 版本选型不代表实际接入已经验证。先沿用 Spring Boot 2.7.18 的依赖管理，不主动覆盖 Netty、Jackson 版本；核对最终依赖树并完成项目启动、Redis 连接及加解锁验证后，再确认实际兼容性。上述项目验证尚未执行，不能承诺零依赖冲突。
 - 涉及以上技术时，按本节版本为准，并说明：“以下内容按照当前项目 `AGENTS.md` 项目级规则中规定的技术栈版本为准。”
 - 涉及未列出的技术时，先确认使用版本；不得擅自修改已确认的版本。
 
