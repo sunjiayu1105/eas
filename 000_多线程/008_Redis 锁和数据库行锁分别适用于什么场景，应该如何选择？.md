@@ -88,7 +88,7 @@ Redis 计数递增可以使用原子命令；Redis 内的条件检查与修改�
 
 ### 4.5 依据与查阅入口
 
-- 当前项目批次启动方案：[为什么选择数据库行锁](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/015_不停机数据迁移_在线历史迁移_批次状态控制_启动互斥与初始化事务_为什么选择数据库行锁.md>)。用于说明已确认方案，不作为生产效果证明。
+- 历史批次启动方案：[为什么选择数据库行锁](<D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/ref_不停机数据迁移_在线历史迁移_批次启动_为什么选择数据库行锁.md>)。用于对照历史取舍。现行方案使用 Redisson 启动锁与数据库条件更新。
 - [MySQL 8.0 Locking Reads](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/innodb-locking-reads.html)：事务内锁定读取及锁释放规则的查阅入口。
 - [Redis Distributed Locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/)：锁有效期、所有权及分布式锁安全边界的查阅入口。
 - [Redis Scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/)：脚本原子执行边界的查阅入口。
