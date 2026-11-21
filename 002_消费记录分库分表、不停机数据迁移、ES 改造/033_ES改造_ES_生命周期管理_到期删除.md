@@ -4,7 +4,7 @@
 
 - 以下内容按照当前项目 AGENTS.md 规定的技术栈版本编写：Java 8、Spring Boot 2.7.18、MySQL 8.0.33、Elasticsearch 7.17.15、RocketMQ Spring 2.3.0、RocketMQ Client 5.2.0、Canal Server 1.1.7。
 - 采用整索引删除方案：MySQL 到期 DELETE 不调用 ES Delete API，ES 由每年 1 月 1 日的自动任务删除整个过期月份索引。
-- MySQL 按与 ES 相同的自然年下界清理原始 `create_time` 数据；撤销新增一笔业务记录，通过流水号关联原消费。
+- MySQL 按与 ES 相同的自然年下界清理原始 `create_time` 数据；消费记录表中每条记录都有唯一流水号（`serialNo`）。撤销新增一笔记录，使用自己的流水号，并另行关联原消费的流水号。
 - 查询和校验限制在当前年份及前 4 个自然年，超期数据不能被查询、校验或补偿流程重新写入。
 - ES 按不可变的原始 `create_time` 定位自然月索引 `records-yyyy.MM`，业务时区为 UTC+08:00，不使用 rollover。
 - ILM 只负责冷热层迁移，不负责按自然年精确删除；删除任务按索引元数据、命名规则和年份生成清单后执行。
