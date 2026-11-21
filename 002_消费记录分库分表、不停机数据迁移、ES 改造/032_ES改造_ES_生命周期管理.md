@@ -15,4 +15,6 @@
 
 ## 4 复核记录
 
-2026-11-21，已执行 java-interview-doc-review-loop。
+本次复核完成时间：2026-11-21 18:16
+
+已执行 java-interview-doc-review。追加整理 0 轮。已核对冷热迁移与年度清理两个导航入口，本轮文档核对结束。

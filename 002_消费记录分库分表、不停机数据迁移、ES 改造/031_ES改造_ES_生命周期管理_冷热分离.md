@@ -12,6 +12,8 @@
 
 ## 2 面试口述精炼版本
 
+口述内容字符数：319
+
 **先控制历史回放期间的生命周期动作**
 
 历史索引可能在创建时就已经达到正式策略的年龄条件，所以回放期间先绑定只有 hot 阶段的临时 ILM 策略，不执行迁移、只读或删除。这样先保证历史数据能够完整写入和校验。
@@ -90,9 +92,9 @@ PUT /_ilm/policy/consume-normal
 
 ## 5 复核说明
 
-本轮删除了重复的“原主题”块，按“回放期间暂停 → 索引准备和计龄 → 验收后切换 → 迁移状态核对”的依赖顺序重组内容。
+本次复核完成时间：2026-11-21 18:16
 
-已执行 [java-interview-doc-review-loop](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review-loop\\SKILL.md)，并按 [java-interview-doc-review](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review\\SKILL.md) 复核逻辑是否层层递进、表述是否适用于面试口述，以及设计、实现和验证边界。
+已执行 java-interview-doc-review。追加整理 0 轮。已核对历史回放时的临时策略、自然月计龄及正式冷热策略的启用条件，本轮文档核对结束。
 
 ### 已确认规则
 

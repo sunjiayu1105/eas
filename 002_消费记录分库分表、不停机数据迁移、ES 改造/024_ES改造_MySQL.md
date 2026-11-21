@@ -26,6 +26,8 @@
 
 ## 面试口述精炼版本
 
+口述内容字符数：900
+
 ### 整体概括
 
 MySQL 侧要为同步提供三个前提：**变更完整记入 binlog（二进制日志）、首次同步起点覆盖历史导入、采集故障后仍有 binlog 可追赶**。
@@ -244,4 +246,6 @@ MySQL 侧恢复前重点核对来源身份、可靠起点之后的日志连续�
 
 ## 复核记录
 
-- 2026-11-01 17:22；已执行 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md)
+本次复核完成时间：2026-11-21 18:16
+
+已执行 java-interview-doc-review。追加整理 0 轮。已核对双写前的两份基线、双写上线时启动采集和中断后逐实例追赶，本轮文档核对结束。

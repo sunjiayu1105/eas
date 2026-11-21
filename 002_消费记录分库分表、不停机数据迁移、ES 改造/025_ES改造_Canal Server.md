@@ -149,6 +149,8 @@ Broker 收到消息后，Canal 还需要确认批次并持久化进度。此时�
 
 ## 6 复核记录
 
-本轮将原 022 的完整数据链路归入本页，原 016 的总览和导航职责保留。
+本次复核完成时间：2026-11-21 18:16
 
-已执行 [java-interview-doc-review-loop](C:/Users/Administrator/.codex/skills/java-interview-doc-review-loop/SKILL.md)。本轮按主题归属去重并复核标题、编号、引用和示例；未执行 MySQL、Canal、RocketMQ 或 ES 联调。
+已执行 java-interview-doc-review。追加整理 0 轮。已核对行事件到分区消息的映射，以及发布与位点确认之间的重放窗口，本轮文档核对结束。
+
+本轮将原 022 的完整数据链路归入本页，原 016 的总览和导航职责保留。

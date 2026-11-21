@@ -80,6 +80,8 @@ Binlog、Canal 和 RocketMQ 继续承担 MySQL 到 ES 的正常同步职责，�
 
 ## 7 执行记录
 
-- 本轮执行 [java-interview-doc-review-loop](C:\Users\Administrator\.codex\skills\java-interview-doc-review-loop\SKILL.md) 两轮，重点检查逻辑是否层层递进、表述是否适用于面试口述。
-- 前次整理曾使用旧编号记录分文档关系。本轮以当前 022 及其 999 前缀分文档为准，轮次回看、分页、比较补偿和恢复的具体内容仍以本篇正文和对应分文档为准。
-- 已执行静态文档、链接和差异检查；未运行 MySQL、Canal、RocketMQ 或 Elasticsearch 服务，运行时行为仍待验证。
+本次复核完成时间：2026-11-21 18:16
+
+已执行 java-interview-doc-review。追加整理 0 轮。已核对源表现存行的扫描盲区、回看与分页，以及同版本字段差异的处理，本轮文档核对结束。
+
+前次整理使用的旧编号仅供追溯。当前分工见本篇第 4 节。

@@ -12,6 +12,8 @@
 
 ## 2 面试口述精炼版本
 
+口述内容字符数：296
+
 **先区分可处理结果和未解决异常**
 
 每条消息内的事件逐条同步调用 ES。已经核实为重复或过期的版本冲突，可以按幂等规则结束；网络、权限、索引缺失、映射错误、超时或必要状态保存失败，都属于未解决异常，不能直接当作成功。
@@ -79,11 +81,9 @@ MySQL DELETE 不调用 ES Delete API；到期删除事件的消息处理边界�
 
 ## 5 复核说明
 
-本轮删除了重复的“原主题”块，按“事件处理 → 结果分类 → 消息确认与重投 → 补偿恢复 → 生命周期边界”的顺序重组内容。
+本次复核完成时间：2026-11-21 18:16
 
-本次重命名复核完成时间：2026-10-31 14:10。
-
-已执行 [java-interview-doc-review-loop](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review-loop\\SKILL.md) 的整理要求，并按 [java-interview-doc-review](C:\Users\Administrator\\.codex\\skills\\java-interview-doc-review-loop\\SKILL.md) 复核逻辑是否层层递进、表述是否适用于面试口述，以及异常分类、确认边界和验证状态。
+已执行 java-interview-doc-review。追加整理 0 轮。已核对部分成功、整条消息重投及必要状态保存后的确认条件，本轮文档核对结束。
 
 ### 已确认规则
 

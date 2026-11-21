@@ -118,6 +118,6 @@ PUT /_ilm/policy/consume-normal
 
 ## 5 复核记录
 
-本次复核完成时间：2026-11-01 16:45
+本次复核完成时间：2026-11-21 18:16
 
-已执行 [java-interview-doc-review](C:\Users\Administrator\.codex\skills\java-interview-doc-review\SKILL.md)
+已执行 java-interview-doc-review。追加整理 0 轮。已核对保留当前年份和前四个自然年的边界、整月删除及过期回放防护，本轮文档核对结束。
