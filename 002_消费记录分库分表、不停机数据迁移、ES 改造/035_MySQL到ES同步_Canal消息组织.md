@@ -1,4 +1,4 @@
-# 034_MySQL到ES同步_Canal消息组织
+# 035_MySQL到ES同步_Canal消息组织
 
 ## 1 说明
 
@@ -18,7 +18,7 @@ Canal 怎样把一次事务里的多行变化转换成 MQ 消息？
 
 Canal 将行变更解析为事件。按项目的扁平 JSON 格式，同一条消息描述来源表、操作类型及一组行数据。生产端还会按路由与分区配置组织发送。例如一次事务修改多行，消费端要逐条读取消息里的行，不能把数据库事务、Canal 拉取批次和 MQ 消息当作一一对应。
 
-[详细方案（第 23 行）](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/034_MySQL到ES同步_Canal消息组织.md:23>)
+[详细方案（第 23 行）](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/035_MySQL到ES同步_Canal消息组织.md:23>)
 
 ## 5 详细方案
 
@@ -127,7 +127,7 @@ Canal 将行变更解析为事件。按项目的扁平 JSON 格式，同一条�
 
 完整 JSON 及字段解释见 [消息格式与字段边界](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_消息格式与字段边界.md>)。发送返回后还要进入 Canal 提交或回滚，见 [RocketMQ发布与Canal批次确认](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_RocketMQ发布与Canal批次确认.md>)；本地位点落盘及重启恢复见 [本地位点与单机恢复](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_本地位点与单机恢复.md>)。这些状态都不等于 ES 已写入。
 
-直接主文档：[MySQL到ES同步](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/032_MySQL到ES同步.md:1>)
+直接主文档：[MySQL到ES同步](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/033_MySQL到ES同步.md:1>)
 
 ## 6 已确认规则
 
@@ -142,6 +142,6 @@ Canal 将行变更解析为事件。按项目的扁平 JSON 格式，同一条�
 
 ## 8 复核记录
 
-本次复核完成时间：2026-11-22 17:54
+本次复核完成时间：2026-11-22 18:12
 
-已执行 java-interview-doc-review。追加整理 0 轮。已对照第 11.2 题核对答案、材料归属和引用，运行效果以文中验证状态为准。
+已执行 java-interview-doc-review。追加整理 0 轮。核对了本题口述、题目归属和文档入口。已完成本轮文档核对，运行结论沿用文内验证状态。
