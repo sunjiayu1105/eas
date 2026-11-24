@@ -28,7 +28,7 @@ Canal 采集到一次多行更新后，为什么不能按一个事务对应一�
 
 上一级问题见 [直接主文档](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/036_MySQL到ES同步.md:1>)。
 
-本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`025` 只负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
+本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`036` 负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
 
 1. **部署拓扑**：说明单机 Canal Server、`db0`/`db1` 两个 destination、RocketMQ 和下游 ES 服务的连接关系，以及单机故障边界，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑.md>)。
 2. **公共配置**：说明 `canal.properties`、destination 实例配置、RocketMQ 参数和本地位点模板入口，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置.md>)。
@@ -149,6 +149,6 @@ Canal 采集到一次多行更新后，为什么不能按一个事务对应一�
 ## 8 复核记录
 
 
-本次复核时间：2026-11-24 14:39
+本次复核时间：2026-11-24 15:09
 
-已执行 java-interview-doc-review。追加整理 0 轮。本轮已核对确认题单、答题文档与导航的对应关系。阅读器实际跳转和系统运行效果尚待验证。
+已执行 java-interview-doc-review。追加整理 1 轮。更正主链路总述的编号，核对一批事件、多行数据和消息之间的关系。
