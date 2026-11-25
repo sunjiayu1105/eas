@@ -28,7 +28,7 @@ Canal 采集到一次多行更新后，为什么不能按一个事务对应一�
 
 上一级问题见 [直接主文档](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/039_MySQL到ES同步.md:1>)。
 
-本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，`036` 负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
+本组重新按单一职责拆分为 11 个主题文档。阅读顺序就是实现顺序，039 负责汇总主链路、核心约束和文档导航；具体细节分别由以下文档承担：
 
 1. **部署拓扑**：说明单机 Canal Server、`db0`/`db1` 两个 destination、RocketMQ 和下游 ES 服务的连接关系，以及单机故障边界，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_部署拓扑.md>)。
 2. **公共配置**：说明 `canal.properties`、destination 实例配置、RocketMQ 参数和本地位点模板入口，见 [999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_公共配置.md>)。
@@ -146,8 +146,16 @@ Canal 采集到一次多行更新后，为什么不能按一个事务对应一�
 
 各专题记录自身缺口；完整联调清单见 [监控与验收](<./999_ES改造_Canal Server_Canal Server 同步 binlog 到 RocketMQ_监控与验收.md>)。本文只给阅读入口，不把设计链路表述为已部署结果。
 
-## 8 复核记录
+## 8 整理进度
 
-本次复核时间：2026-11-24 16:17
+记录时间：2026-11-25 16:03
 
-已执行 java-interview-doc-review。追加整理 0 轮。对照 Canal 1.1.7 的批次读取接口、040 和 042，核对事务、行事件、批次与消息的边界。本轮为材料复核。项目运行及 Codex 阅读器点击跳转仍待验证。
+最终状态：已完成
+
+完成编写正文并复核：1 次
+
+影响完成的问题：无
+
+结束原因：已核对行事件、批次、消息和分区的关系。
+
+项目运行与阅读器点击跳转仍待验证。
