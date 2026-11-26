@@ -23,13 +23,13 @@
 
 ## 3 面试口述版本
 
-口述内容字符数：195（不计参考链接）
+口述内容字符数：266（不计参考链接）
 
-我先固定请求类型、比例和到达速率，每档只改线程数。假设每秒发 300 个请求，目标是每秒完成 300 个，且至少 95% 在 100 毫秒内返回。[Grafana k6 · Constant arrival rate，每次迭代发一个请求即可固定请求到达速率](<https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/>) · [Grafana k6 · Thresholds，用第 95 百分位响应时间判断是否达标](<https://grafana.com/docs/k6/latest/using-k6/thresholds/>)
+我先从生产监控里选几个业务高峰，看单个实例每秒收到多少请求、各类请求占比和高峰持续时间，再核对这些请求每秒向线程池提交多少任务。压测环境的 CPU 配额和数据库连接数尽量贴近生产，每档重放同一组流量，只改线程数。[Grafana k6 · Constant arrival rate，每次迭代发一个请求即可固定请求到达速率](<https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/>)
 
-假设 8 个线程每秒只完成 260 个，队列持续增长。12 个和 16 个线程都完成 300 个，队列稳定，两档的第 95 百分位响应时间分别是 80 和 95 毫秒。我选 12 个，已经达标，加到 16 个也没提高完成量。
+假设模拟的高峰流量是每秒 300 个请求，业务要求至少 95% 在 100 毫秒内返回。假设用 8 个线程每秒只完成 260 个，队列持续增长。12 个和 16 个线程都能每秒完成 300 个，队列稳定，第 95 百分位响应时间分别为 80 和 95 毫秒。我选 12 个，已经达标，加到 16 个也没提高完成量。[Grafana k6 · Thresholds，用第 95 百分位响应时间判断是否达标](<https://grafana.com/docs/k6/latest/using-k6/thresholds/>)
 
-如果数据库连接已经用满，加线程只会让更多任务等连接。我会先核对连接等待时间和下游处理量，再判断增加并发有没有用。[Zalando · 线程数公式与数据库连接池限制](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>)
+如果数据库连接用满，我会看等连接的时间和下游处理量。等待变长而处理量没增加，说明加线程只让更多任务排队。[Zalando · 线程数公式与数据库连接池限制](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>)
 
 ## 4 已确认规则
 
