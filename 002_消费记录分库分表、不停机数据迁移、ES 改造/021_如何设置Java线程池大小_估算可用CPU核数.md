@@ -22,13 +22,13 @@
 
 ## 3 面试口述版本
 
-口述内容字符数：251（不计参考链接）
+口述内容字符数：300（不计参考链接）
 
-我会先查生产监控，确认这个实例能用多少核，再看几个有代表性的业务高峰。服务跑在容器里时，就看同一容器的可用核数和 CPU 用量。如果这个池已在跑，我会从实例同期消耗的 CPU 时间中扣除池内线程消耗的 CPU 时间，估算其他业务的用量。
+以 Kubernetes 为例，我先查容器的 `resources.limits.cpu`，看 CPU 上限。没设限额时，再核实实例可用的算力。Prometheus 采集容器累计 CPU 时间，我用 Grafana 查看同一容器在几个生产高峰的用量曲线。[Kubernetes 容器资源配置](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) · [cAdvisor 容器 CPU 指标](https://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md)
 
-其他业务平均占用核数 ≈ 窗口内其他业务消耗的 CPU 时间 ÷ 窗口时长。假设高峰期的 10 秒里累计用了 30 秒 CPU 时间，平均就占了 3 核。[Kubernetes 资源指标文档 · Measuring resource usage / CPU](<https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#cpu>)
+平均占用核数 ≈ CPU 时间增量 ÷ 观察时长。用 Prometheus 的 `rate` 查 `container_cpu_usage_seconds_total` 就能得到这个速率。如果线程池已在运行，先扣除池内线程同期的 CPU 用量。假设其他业务在 10 秒内用了 30 秒 CPU 时间，平均就占 3 核。[Prometheus rate 函数](https://prometheus.io/docs/prometheus/latest/querying/functions/#rate)
 
-线程池可用核数 ≈ 实例可用核数 − 高峰期其他业务占用核数 − 预留核数。假设实例可用 8 核，根据多个高峰窗口的波动预留 1 核，就先按 8 − 3 − 1 = 4 核估算。再用接近生产高峰的负载压测，确认原有业务的响应时间仍然达标。
+线程池可用核数 ≈ 实例可用核数 − 高峰期其他业务占用核数 − 预留核数。假设可用 8 核，根据高峰波动预留 1 核，就从 8 − 3 − 1 = 4 核估算，再用高峰负载压测，核对原有业务的响应时间。
 
 ## 4 已确认规则
 
