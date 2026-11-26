@@ -32,6 +32,10 @@ Markdown 文档的一级标题必须与文档名称保持一致；比较时忽�
 
 每次修改 `/eas` 目录下的文件，完成修改和必要验证后，都必须将修改后的文件提交并推送到 Git 远程仓库；推送前应确认远程地址和当前分支状态可用。
 
+## 7 面试材料文档复核
+
+每次修改面试材料文档后，在提交前，对本次修改的每篇面试材料文档执行一遍 `java-interview-doc-workflow` 的[单篇面试文档复核步骤](C:/Users/Administrator/.codex/skills/java-interview-doc-workflow/references/review-checks.md)。
+
 # 技术栈与版本
 
 发行日期按下列官方发布记录的日期记载，不按项目接入时间或网页最近更新时间计算。Java 8 使用首次正式发布（GA）日期，不代表某个 8u 更新版本；GitHub 来源使用 Release 发布时间，不使用后续编辑或评论时间。
