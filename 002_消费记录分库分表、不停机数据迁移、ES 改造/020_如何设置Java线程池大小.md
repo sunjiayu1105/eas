@@ -25,13 +25,13 @@
 
 ## 3 面试口述版本
 
-口述内容字符数：740
+口述内容字符数：740（不计参考链接）
 
 ### 3.1 估算线程池可用的 CPU 核数
 
 我会先让这个池暂时不接任务，在有代表性的业务高峰连续观察几个时间窗口，看其他业务用了多少 CPU。服务跑在容器里时，按这个容器可用的 CPU 和实际用量来算。
 
-**其他业务平均占用的核数 ≈ 这段时间累计使用的 CPU 时间 ÷ 观察时长**
+**其他业务平均占用的核数 ≈ 这段时间累计使用的 CPU 时间 ÷ 观察时长** [Kubernetes 资源指标文档 · Measuring resource usage / CPU](<https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#cpu>)
 
 假设实例有 8 核。在较忙的 10 秒里，其他业务的线程合计用了 30 秒 CPU 时间，相当于平均占用 3 核。多个核心能同时工作，所以 10 秒内可以用掉 30 秒 CPU 时间。假设再留 1 核应对流量波动，线程池就能用 `8 − 3 − 1 = 4` 核。实际留多少，要看高峰波动和压测时原有业务的响应时间。
 
@@ -43,7 +43,7 @@
 
 **起始线程数 ≈ 线程池可用的 CPU 核数**
 
-按上面的 4 核预算，我会从 **4 个线程** 开始测。
+按上面的 4 核预算，我会从 **4 个线程** 开始测。[Zalando 工程文章 · 搜索 blocking coefficient，见等待时间接近零时的估算](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>)
 
 #### 3.2.2 同步阻塞 I/O 型任务
 
@@ -51,7 +51,7 @@
 
 **起始线程数 ≈ 线程池可用的 CPU 核数 ×（1 + 平均阻塞等待时间 ÷ 平均计算时间）**
 
-假设一个任务计算 10 毫秒、等数据库 20 毫秒，一个线程平均只有三分之一的时间在用 CPU。要用上 4 核，可以从 `4 ×（1 + 20 ÷ 10）= 12` 个线程开始测。公式只计工作线程被占住的等待时间。任务还在队列里排队，或者异步请求发出后线程已经返回池中，这些时间都要排除。数据库连接已经用满时，也要留意加线程是否只会增加等待。
+假设一个任务计算 10 毫秒、等数据库 20 毫秒，一个线程平均只有三分之一的时间在用 CPU。要用上 4 核，可以从 `4 ×（1 + 20 ÷ 10）= 12` 个线程开始测。公式只计工作线程被占住的等待时间。任务还在队列里排队，或者异步请求发出后线程已经返回池中，这些时间都要排除。数据库连接已经用满时，也要留意加线程是否只会增加等待。[Zalando 工程文章 · 搜索 Target CPU utilization，核对公式和数据库连接池限制](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>) · [Java 8 ThreadPoolExecutor · Queuing 中的 Bounded queues](<https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html>)
 
 ### 3.3 比较压测结果，确定线程数
 
@@ -61,7 +61,7 @@
 - **12 个线程**：每秒完成 300 个，队列不再增长，95% 的请求在 80 毫秒内返回。
 - **16 个线程**：每秒仍完成 300 个，95% 的请求在 95 毫秒内返回。
 
-我会选 **12 个线程**。这一档已经满足处理量和响应时间要求，加到 16 个也没有多处理请求。
+我会选 **12 个线程**。这一档已经满足处理量和响应时间要求，加到 16 个也没有多处理请求。[Grafana k6 · Constant arrival rate，每次迭代发一个请求即可固定请求到达速率](<https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/>) · [Grafana k6 · Thresholds，用第 95 百分位响应时间判断是否达标](<https://grafana.com/docs/k6/latest/using-k6/thresholds/>)
 
 ## 4 详细方案
 
@@ -72,6 +72,7 @@
 ## 5 已确认规则
 
 1. 面试口述中先说明线程数的估算公式，再代入示例数值计算。
+2. 面试口述中的技术结论附上可直接核对的参考来源。
 
 ## 6 整理进度
 
