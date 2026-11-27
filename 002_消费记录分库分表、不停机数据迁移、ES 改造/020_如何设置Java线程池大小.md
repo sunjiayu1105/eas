@@ -6,40 +6,44 @@
 
 ## 2 问题
 
-一般情况下，如何设置 Java 线程池的大小？
+一般情况下，怎样确定 Java 线程池的核心线程数？
 
 ### 2.1 考点
 
-1. 按可用 CPU 核数估算计算密集型任务的起始线程数。
-2. 按计算和同步等待的时间估算阻塞任务的起始线程数。
+1. 根据业务高峰期本池可用的 CPU 算力确定计算型任务的起始线程数。
+2. 根据工作线程的阻塞等待时间与计算时间之比估算同步 I/O 任务的起始线程数。
+3. 用代表性负载比较候选配置，选出满足吞吐和响应时间目标的较小档位。
+4. 根据下游连接和处理能力判断继续增加线程是否还有收益。
 
 ### 2.2 答题范围
 
-用同一份 CPU 预算估算两类任务的核心线程数，说明固定倍数的适用条件，以及压测时如何控制最大线程数和队列。
+先给公式，再用同一份假设 CPU 预算对比两类任务。说明 N+1、2N 在什么条件下值得试测。结合生产高峰的请求组成、到达速率和持续时间解释如何压测。区分“在当前负载下达标”和“逐级加压后找到容量拐点”。队列策略作为控制条件，容量和扩容流程分别见023、024。
 
 ### 2.3 候选理由
 
-材料提出按任务的等待与计算时间估算并发度。用相同的 CPU 预算比较两类任务，可以考查候选人能否解释线程数为什么不同。公开备考资料中的问题“线程池参数怎么估算？”也考查如何从负载与资源条件确定起点。[JavaGuide《Java 线程池最佳实践》](https://github.com/Snailclimb/JavaGuide/blob/main/docs/java/concurrent/java-thread-pool-best-practices.md)[线程池大小与任务积压原始材料](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/078_线程池大小与任务积压原始材料.md:1>)
+指定材料中，面试官追问的是线上核心线程数的配置依据。把估算和压测放在同一个回答里，能讲清从候选值到最终配置的过程。公开备考资料中的“线程池参数怎么估算？”同样考查如何结合任务耗时、业务负载与下游容量确定起点。[指定参考材料](<ref_ Java 线程池核心线程数的配置.md>) · [JavaGuide《Java 线程池最佳实践》](https://github.com/Snailclimb/JavaGuide/blob/main/docs/java/concurrent/java-thread-pool-best-practices.md)
 
 ## 3 面试口述版本
 
-口述内容字符数：258（不计参考链接）
+口述内容字符数：232（不计参考链接）
 
-### 3.1 主要做计算的任务
+计算型任务先按核心线程数 ≈ 本池可用核数 N 估算。假设从生产高峰监控扣除其他业务和预留算力后还有 4 核，就从 4 个线程起测。有短暂等待时也测相邻的 N+1 档。[线程数估算公式](https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html)
 
-我先估算核心线程数 corePoolSize。计算型任务的起始线程数 ≈ 分给线程池的 CPU 核数。假设扣除其他业务和预留算力后还有 4 核，做哈希计算就从 4 个线程开始测。这里 N 指分给池的核数，N+1 可以作为相邻档位，额外的线程是否有收益要压测。[Zalando 工程文章 · 搜索 blocking coefficient，见等待时间接近零时的估算](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>)
+同步阻塞任务按 N ×（1 + 平均阻塞等待时间 ÷ 平均计算时间）估算。假设每个任务算 10 毫秒、等数据库 20 毫秒，就从 4 ×（1 + 20 ÷ 10）= 12 个起测。等待和计算一样长时才约为 2N。[线程数估算公式](https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html)
 
-### 3.2 同步等待 I/O 的任务
-
-起始线程数 ≈ 可用 CPU 核数 ×（1 + 平均阻塞等待时间 ÷ 平均计算时间）。假设每个任务计算 10 毫秒、等数据库 20 毫秒，就从 4 ×（1 + 20 ÷ 10）= 12 个线程起测。只有等待和计算时间相近时，公式才给出约 2N。只计工作线程被占住的等待时间，排队或异步释放线程后的等待要扣除。最后结合下游连接容量和压测结果定值。[Java 8 ThreadPoolExecutor · Queuing 中的 Bounded queues](<https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html>) · [Zalando · 线程数公式与数据库连接池限制](<https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html>)
+按生产高峰的请求比例、到达速率和持续时间压测，固定队列策略，选吞吐达标、队列稳定且慢请求也达标的较小档位。要找容量拐点，再对各档逐级加压，看成功吞吐何时趋平、延迟开始上升。若连接已满，加线程可能只会加长等待。[JavaGuide 线程池最佳实践](https://github.com/Snailclimb/JavaGuide/blob/main/docs/java/concurrent/java-thread-pool-best-practices.md) · [k6 分阶段加压](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ramping-arrival-rate/)
 
 ## 4 详细方案
 
-用同一组有代表性的任务测量每个任务的线程 CPU 时间 C 和执行期间的阻塞等待时间 W。任务进入线程池之前或在工作队列中排队的时间要单独统计。线程平均占用一个核心的比例约为 C / (C + W)，所以候选线程数约为 CPU 预算 × (1 + W / C)。CPU 预算要考虑进程配额、同机其他负载和希望留出的余量。等待时间随并发增长时，重新测量。
+在代表性高峰窗口，用其他业务消耗的 CPU 时间除以窗口时长，估算平均占用核数。容器有 CPU 配额时，按容器可用算力扣除这部分和波动余量。同步等待只计工作线程执行任务期间被占住的时间，入队后尚未开始执行的时间单独统计。[CPU 用量口径](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/#cpu) · [线程数估算公式](https://engineering.zalando.com/posts/2019/04/how-to-set-an-ideal-thread-pool-size.html)
 
-每档把 corePoolSize 和 maximumPoolSize 都设为该档线程数，观察有足够任务时实际活跃的线程数。改变线程数时保持队列策略和负载一致。配置弹性池时还要看工作队列。核心线程都忙时，ThreadPoolExecutor 会先尝试入队，入队失败后才尝试扩到最大线程数。使用近似无界的队列时，单独调大 maximumPoolSize 往往起不到扩容作用。[Java 8 ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)
+每档把 corePoolSize 和 maximumPoolSize 设为相同的候选值，在相同负载与队列容量下比较。改用弹性池时，到达核心数后优先入队，入队失败才尝试在最大线程数范围内扩容。[Java 8 ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) · [队列容量](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/023_在线历史迁移_并发限流_任务队列容量.md:1>) · [任务提交与扩容](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/024_在线历史迁移_并发限流_任务队列容量_任务提交与线程扩容.md:1>)
 
-队列过大可能积压任务、占用堆内存并拉长等待。队列较小时更早尝试扩容，队列和线程都达到上限后才触发饱和拒绝。结果由拒绝策略决定，例如抛出异常或让提交方执行。按业务能容忍的排队时间和内存预算选容量，再压测验证。[Java 8 拒绝策略](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) · [任务队列容量](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/022_在线历史迁移_并发限流_任务队列容量.md:1>)
+假设目标是每秒完成 300 个请求，且至少 95% 在 100 毫秒内返回。在每秒输入 300 个请求时，假设 8 个线程只能完成 260 个，12 个和 16 个都完成 300 个，均无拒绝，队列稳定，第 95 百分位响应时间分别为 80 和 95 毫秒。此时可选 12 个。若要判断余量，应继续提升输入速率，比较每档可持续达到延迟目标的最高成功吞吐量。[k6 分阶段加压](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ramping-arrival-rate/)
+
+### 4.1 相关追问
+
+[上线后队列持续增长，怎样调整和回退？](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/021_如何设置Java线程池大小_高峰期调整与回退.md:1>)
 
 ## 5 已确认规则
 
@@ -49,6 +53,6 @@
 
 ## 6 整理进度
 
-记录时间：2026-11-26 23:17
+记录时间：2026-11-27 11:19
 
 最终状态：已完成
