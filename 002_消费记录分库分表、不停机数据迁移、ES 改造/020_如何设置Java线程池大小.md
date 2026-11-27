@@ -19,7 +19,7 @@
 
 ### 2.3 候选理由
 
-材料提出按任务的等待与计算时间估算并发度。用相同的 CPU 预算比较两类任务，可以考查候选人能否解释线程数为什么不同。公开备考资料中的问题“线程池参数怎么估算？”也考查如何从负载与资源条件确定起点。[JavaGuide《Java 线程池最佳实践》](https://github.com/Snailclimb/JavaGuide/blob/main/docs/java/concurrent/java-thread-pool-best-practices.md)[线程池大小与任务积压原始材料](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/080_线程池大小与任务积压原始材料.md:1>)
+材料提出按任务的等待与计算时间估算并发度。用相同的 CPU 预算比较两类任务，可以考查候选人能否解释线程数为什么不同。公开备考资料中的问题“线程池参数怎么估算？”也考查如何从负载与资源条件确定起点。[JavaGuide《Java 线程池最佳实践》](https://github.com/Snailclimb/JavaGuide/blob/main/docs/java/concurrent/java-thread-pool-best-practices.md)[线程池大小与任务积压原始材料](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/078_线程池大小与任务积压原始材料.md:1>)
 
 ## 3 面试口述版本
 
@@ -39,13 +39,7 @@
 
 每档把 corePoolSize 和 maximumPoolSize 都设为该档线程数，观察有足够任务时实际活跃的线程数。改变线程数时保持队列策略和负载一致。配置弹性池时还要看工作队列。核心线程都忙时，ThreadPoolExecutor 会先尝试入队，入队失败后才尝试扩到最大线程数。使用近似无界的队列时，单独调大 maximumPoolSize 往往起不到扩容作用。[Java 8 ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html)
 
-队列过大可能积压任务、占用堆内存并拉长等待。队列较小时更早尝试扩容，队列和线程都达到上限后才触发饱和拒绝。结果由拒绝策略决定，例如抛出异常或让提交方执行。按业务能容忍的排队时间和内存预算选容量，再压测验证。[Java 8 拒绝策略](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) · [任务队列容量](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/024_在线历史迁移_并发限流_任务队列容量.md:1>)
-
-### 4.1 相关追问
-
-[你刚才按 4 核估算，怎么知道这个池能用多少核？](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/021_如何设置Java线程池大小_估算可用CPU核数.md:1>)
-
-[算出起始线程数后，怎么判断应该增加线程，还是已经够用？](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/022_如何设置Java线程池大小_通过压测确定线程数.md:1>)
+队列过大可能积压任务、占用堆内存并拉长等待。队列较小时更早尝试扩容，队列和线程都达到上限后才触发饱和拒绝。结果由拒绝策略决定，例如抛出异常或让提交方执行。按业务能容忍的排队时间和内存预算选容量，再压测验证。[Java 8 拒绝策略](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) · [任务队列容量](</D:/000/sources/eas/002_消费记录分库分表、不停机数据迁移、ES 改造/022_在线历史迁移_并发限流_任务队列容量.md:1>)
 
 ## 5 已确认规则
 
